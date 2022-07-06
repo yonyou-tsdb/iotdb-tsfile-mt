@@ -692,7 +692,7 @@ public class WALNode implements IWALNode {
       if (needUpdatingFilesToSearch || filesToSearch == null) {
         updateFilesToSearch();
         if (needUpdatingFilesToSearch) {
-          logger.warn("update file to search failed");
+          logger.warn("update file to search index = {} failed.", nextSearchIndex);
           return false;
         }
       }

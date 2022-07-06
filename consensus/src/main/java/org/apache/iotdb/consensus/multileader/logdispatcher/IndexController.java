@@ -19,8 +19,6 @@
 
 package org.apache.iotdb.consensus.multileader.logdispatcher;
 
-import org.apache.iotdb.commons.utils.TestOnly;
-
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +90,6 @@ public class IndexController {
     }
   }
 
-  @TestOnly
   public long getLastFlushedIndex() {
     return lastFlushedIndex;
   }
