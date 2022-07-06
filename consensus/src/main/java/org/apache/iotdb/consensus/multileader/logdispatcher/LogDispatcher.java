@@ -156,7 +156,7 @@ public class LogDispatcher {
     }
 
     public long getCurrentSyncIndex() {
-      return controller.getCurrentIndex();
+      return controller.getLastFlushedIndex();
     }
 
     public Peer getPeer() {
