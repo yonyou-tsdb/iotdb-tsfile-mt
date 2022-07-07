@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.consensus.multileader.client;
 
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.consensus.multileader.logdispatcher.LogDispatcher.LogDispatcherThread;
 import org.apache.iotdb.consensus.multileader.logdispatcher.PendingBatch;
 import org.apache.iotdb.consensus.multileader.thrift.TSyncLogRes;
@@ -37,10 +38,12 @@ public class DispatchLogHandler implements AsyncMethodCallback<TSyncLogRes> {
   private final LogDispatcherThread thread;
   private final PendingBatch batch;
   private int retryCount;
+  private final long startTime;
 
   public DispatchLogHandler(LogDispatcherThread thread, PendingBatch batch) {
     this.thread = thread;
     this.batch = batch;
+    this.startTime = System.nanoTime();
   }
 
   @Override
@@ -58,6 +61,8 @@ public class DispatchLogHandler implements AsyncMethodCallback<TSyncLogRes> {
     } else {
       thread.getSyncStatus().removeBatch(batch);
     }
+    StepTracker.trace("dispatcherSendBatch", 10, startTime, System.nanoTime());
+    StepTracker.trace("dispatcherBatchSize", 10, 0, this.batch.getBatches().size() * 1000L);
   }
 
   @Override

@@ -20,6 +20,7 @@
 package org.apache.iotdb.consensus.multileader.service;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.consensus.ConsensusGroupId;
 import org.apache.iotdb.consensus.common.request.ByteBufferConsensusRequest;
 import org.apache.iotdb.consensus.multileader.MultiLeaderConsensus;
@@ -52,6 +53,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
   @Override
   public void syncLog(TSyncLogReq req, AsyncMethodCallback<TSyncLogRes> resultHandler)
       throws TException {
+    long startTime = System.nanoTime();
     try {
       ConsensusGroupId groupId =
           ConsensusGroupId.Factory.createFromTConsensusGroupId(req.getConsensusGroupId());
@@ -82,6 +84,8 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
       resultHandler.onComplete(new TSyncLogRes(statuses));
     } catch (Exception e) {
       resultHandler.onError(e);
+    } finally {
+      StepTracker.trace("ProcessSyncLog", 10, startTime, System.nanoTime());
     }
   }
 
