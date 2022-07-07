@@ -20,6 +20,7 @@
 package org.apache.iotdb.consensus.multileader.logdispatcher;
 
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.client.IClientManager;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.consensus.common.Peer;
@@ -187,8 +188,10 @@ public class LogDispatcher {
         while (!Thread.interrupted() && !stopped) {
           while ((batch = getBatch()).isEmpty()) {
             // we may block here if there is no requests in the queue
+            long startTime = System.nanoTime();
             IndexedConsensusRequest request =
                 pendingRequest.poll(PENDING_REQUEST_TAKING_TIME_OUT_IN_SEC, TimeUnit.SECONDS);
+            StepTracker.trace("MultiLeaderPoll", 50, startTime, System.nanoTime());
             if (request != null) {
               bufferedRequest.add(request);
               // If write pressure is low, we simply sleep a little to reduce the number of RPC

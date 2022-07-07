@@ -18,6 +18,7 @@
  */
 package org.apache.iotdb.db.wal.io;
 
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.exception.IllegalPathException;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.wal.buffer.WALEntry;
@@ -77,7 +78,9 @@ public class WALReader implements Closeable {
       }
       walEntries.clear();
       while (walEntries.size() < BATCH_LIMIT) {
+        long startTime = System.nanoTime();
         WALEntry walEntry = WALEntry.deserialize(logStream);
+        StepTracker.trace("walEntryDeserialize", 1000, startTime, System.nanoTime());
         walEntries.add(walEntry);
       }
     } catch (EOFException e) {
