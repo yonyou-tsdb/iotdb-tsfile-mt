@@ -84,7 +84,10 @@ public class StepTracker {
     if (metrics.get() == null) {
       metrics.set(new HashMap<>());
     }
-    metrics.get().computeIfAbsent(stepName, key -> new Metric(stepName, printRate)).trace(startTime, endTime);
+    metrics
+        .get()
+        .computeIfAbsent(stepName, key -> new Metric(stepName, printRate))
+        .trace(startTime, endTime);
     metrics.get().get(stepName).tryPrint();
   }
 

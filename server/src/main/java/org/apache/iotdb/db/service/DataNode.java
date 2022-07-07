@@ -334,7 +334,7 @@ public class DataNode implements DataNodeMBean {
         req.setDataNodeInfo(generateDataNodeInfo());
         TSStatus status = configNodeClient.activeDataNode(req);
         if (status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
-            || status.getCode() == TSStatusCode.DATANODE_ALREADY_ACTIVATED.getStatusCode()) {
+            || status.getCode() == TSStatusCode.DATANODE_ALREADY_REGISTERED.getStatusCode()) {
           logger.info("Joined the cluster successfully");
           return;
         }
