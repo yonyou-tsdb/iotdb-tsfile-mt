@@ -59,7 +59,7 @@ import org.apache.iotdb.db.qp.physical.crud.InsertPlan;
 import org.apache.iotdb.db.qp.physical.crud.InsertRowPlan;
 import org.apache.iotdb.db.qp.physical.crud.InsertRowsOfOneDevicePlan;
 import org.apache.iotdb.db.qp.physical.crud.InsertTabletPlan;
-import org.apache.iotdb.db.rescon.SystemInfo;
+import org.apache.iotdb.db.rescon.memory.WriteMemoryController;
 import org.apache.iotdb.db.service.IoTDB;
 import org.apache.iotdb.db.utils.ThreadUtils;
 import org.apache.iotdb.db.utils.UpgradeUtils;
@@ -195,7 +195,7 @@ public class StorageEngine implements IService {
   public static void blockInsertionIfReject(TsFileProcessor tsFileProcessor)
       throws WriteProcessRejectException {
     long startTime = System.currentTimeMillis();
-    while (SystemInfo.getInstance().isRejected()) {
+    while (WriteMemoryController.getInstance().isRejected()) {
       if (tsFileProcessor != null && tsFileProcessor.shouldFlush()) {
         break;
       }

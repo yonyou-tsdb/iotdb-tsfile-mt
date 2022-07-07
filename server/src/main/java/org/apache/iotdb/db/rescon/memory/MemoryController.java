@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iotdb.db.rescon;
+package org.apache.iotdb.db.rescon.memory;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,15 +27,15 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class MemoryController {
+public class MemoryController<T> {
   private static Logger log = LoggerFactory.getLogger(MemoryController.class);
-  private AtomicLong memoryUsage = new AtomicLong(0);
-  private AtomicBoolean triggerRunning = new AtomicBoolean();
-  private long triggerThreshold = -1;
-  private long limitSize = -1;
-  private ReentrantLock lock = new ReentrantLock(false);
-  private Condition condition = lock.newCondition();
-  private Runnable trigger = null;
+  protected AtomicLong memoryUsage = new AtomicLong(0);
+  protected AtomicBoolean triggerRunning = new AtomicBoolean();
+  protected long triggerThreshold = -1;
+  protected long limitSize = -1;
+  protected ReentrantLock lock = new ReentrantLock(false);
+  protected Condition condition = lock.newCondition();
+  protected MemoryControllerTrigger<T> trigger = null;
 
   public MemoryController(long limitSize) {
     this.limitSize = limitSize;
@@ -45,7 +45,8 @@ public class MemoryController {
    * Initialize MemoryController with a trigger. The trigger will run if the memory usage exceeds
    * the trigger threshold.
    */
-  public MemoryController(long limitSize, long triggerThreshold, Runnable trigger) {
+  public MemoryController(
+      long limitSize, long triggerThreshold, MemoryControllerTrigger<T> trigger) {
     this.limitSize = limitSize;
     this.triggerThreshold = triggerThreshold;
     this.trigger = trigger;
@@ -57,7 +58,7 @@ public class MemoryController {
    * @param size
    * @return true if success to allocate else false
    */
-  public boolean tryAllocateMemory(long size) {
+  public boolean tryAllocateMemory(long size, T triggerParam) {
     while (true) {
       long current = memoryUsage.get();
       long newUsage = current + size;
@@ -69,7 +70,7 @@ public class MemoryController {
       }
 
       if (memoryUsage.compareAndSet(current, newUsage)) {
-        checkTrigger(current, newUsage);
+        checkTrigger(current, newUsage, triggerParam);
         return true;
       }
     }
@@ -82,11 +83,11 @@ public class MemoryController {
    * @param size
    * @throws InterruptedException
    */
-  public void allocateMemoryMayBlock(long size) throws InterruptedException {
-    if (!tryAllocateMemory(size)) {
+  public void allocateMemoryMayBlock(long size, T triggerParam) throws InterruptedException {
+    if (!tryAllocateMemory(size, triggerParam)) {
       lock.lock();
       try {
-        while (!tryAllocateMemory(size)) {
+        while (!tryAllocateMemory(size, triggerParam)) {
           condition.await();
         }
       } finally {
@@ -103,12 +104,13 @@ public class MemoryController {
    * @throws InterruptedException
    * @return true if success to allocate else false
    */
-  public boolean allocateMemoryMayBlock(long size, long timeout) throws InterruptedException {
+  public boolean allocateMemoryMayBlock(long size, long timeout, T triggerParam)
+      throws InterruptedException {
     long startTime = System.currentTimeMillis();
-    if (!tryAllocateMemory(size)) {
+    if (!tryAllocateMemory(size, triggerParam)) {
       lock.lock();
       try {
-        while (tryAllocateMemory(size)) {
+        while (tryAllocateMemory(size, triggerParam)) {
           if (System.currentTimeMillis() - startTime >= timeout) {
             return false;
           }
@@ -135,11 +137,11 @@ public class MemoryController {
     }
   }
 
-  private void checkTrigger(long prevUsage, long newUsage) {
+  private void checkTrigger(long prevUsage, long newUsage, T triggerParam) {
     if (newUsage >= triggerThreshold && prevUsage < triggerThreshold && trigger != null) {
       if (triggerRunning.compareAndSet(false, true)) {
         try {
-          trigger.run();
+          trigger.run(triggerParam);
         } finally {
           triggerRunning.set(false);
         }
