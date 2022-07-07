@@ -61,8 +61,16 @@ public class DispatchLogHandler implements AsyncMethodCallback<TSyncLogRes> {
     } else {
       thread.getSyncStatus().removeBatch(batch);
     }
-    StepTracker.trace("dispatcherSendBatch", 10, startTime, System.nanoTime());
-    StepTracker.trace("dispatcherBatchSize", 10, 0, this.batch.getBatches().size() * 1000L);
+    StepTracker.trace(
+        "dispatcherSendBatch-" + this.thread.getPeer().getEndpoint().getIp(),
+        100,
+        startTime,
+        System.nanoTime());
+    StepTracker.trace(
+        "dispatcherBatchSize-" + this.thread.getPeer().getEndpoint().getIp(),
+        100,
+        0,
+        this.batch.getBatches().size() * 1000_000L);
   }
 
   @Override

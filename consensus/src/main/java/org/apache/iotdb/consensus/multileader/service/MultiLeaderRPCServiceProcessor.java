@@ -85,7 +85,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
     } catch (Exception e) {
       resultHandler.onError(e);
     } finally {
-      StepTracker.trace("ProcessSyncLog", 10, startTime, System.nanoTime());
+      StepTracker.trace("ProcessSyncLog", 100, startTime, System.nanoTime());
     }
   }
 
