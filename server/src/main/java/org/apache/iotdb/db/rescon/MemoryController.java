@@ -21,6 +21,7 @@ package org.apache.iotdb.db.rescon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
@@ -40,12 +41,22 @@ public class MemoryController {
     this.limitSize = limitSize;
   }
 
+  /**
+   * Initialize MemoryController with a trigger. The trigger will run if the memory usage exceeds
+   * the trigger threshold.
+   */
   public MemoryController(long limitSize, long triggerThreshold, Runnable trigger) {
     this.limitSize = limitSize;
     this.triggerThreshold = triggerThreshold;
     this.trigger = trigger;
   }
 
+  /**
+   * Allocate the memory without blocking.
+   *
+   * @param size
+   * @return true if success to allocate else false
+   */
   public boolean tryAllocateMemory(long size) {
     while (true) {
       long current = memoryUsage.get();
@@ -64,6 +75,13 @@ public class MemoryController {
     }
   }
 
+  /**
+   * Allocate the memory, if the memory exceeds the limit size, the function will be blocked until
+   * the allocation is success.
+   *
+   * @param size
+   * @throws InterruptedException
+   */
   public void allocateMemoryMayBlock(long size) throws InterruptedException {
     if (!tryAllocateMemory(size)) {
       lock.lock();
@@ -77,16 +95,25 @@ public class MemoryController {
     }
   }
 
-  public boolean allocateMemoryMayBlock(long size, long maxBlockTime) throws InterruptedException {
+  /**
+   * Allocate the memory, if the memory exceeds the limit size, the function will be blocked until
+   * the allocation is success or the waiting time exceeds the timeout.
+   *
+   * @param size
+   * @throws InterruptedException
+   * @return true if success to allocate else false
+   */
+  public boolean allocateMemoryMayBlock(long size, long timeout) throws InterruptedException {
     long startTime = System.currentTimeMillis();
     if (!tryAllocateMemory(size)) {
       lock.lock();
       try {
         while (tryAllocateMemory(size)) {
-          if (System.currentTimeMillis() - startTime >= maxBlockTime) {
+          if (System.currentTimeMillis() - startTime >= timeout) {
             return false;
           }
-          condition.await();
+          long timeToWait = System.currentTimeMillis() - startTime;
+          condition.await(timeToWait, TimeUnit.MILLISECONDS);
         }
         return true;
       } finally {
