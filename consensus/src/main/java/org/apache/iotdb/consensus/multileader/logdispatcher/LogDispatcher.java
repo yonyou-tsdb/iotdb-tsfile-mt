@@ -186,6 +186,7 @@ public class LogDispatcher {
       try {
         PendingBatch batch;
         while (!Thread.interrupted() && !stopped) {
+          long prepareStartTime = System.nanoTime();
           while ((batch = getBatch()).isEmpty()) {
             // we may block here if there is no requests in the queue
             long startTime = System.nanoTime();
@@ -203,6 +204,11 @@ public class LogDispatcher {
           // we may block here if the synchronization pipeline is full
           syncStatus.addNextBatch(batch);
           // sends batch asynchronously and migrates the retry logic into the callback handler
+          StepTracker.trace(
+              "prepareBatch-" + this.getPeer().getEndpoint().getIp(),
+              10,
+              prepareStartTime,
+              System.nanoTime());
           sendBatchAsync(batch, new DispatchLogHandler(this, batch));
         }
       } catch (InterruptedException e) {

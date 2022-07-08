@@ -48,6 +48,11 @@ public class DispatchLogHandler implements AsyncMethodCallback<TSyncLogRes> {
 
   @Override
   public void onComplete(TSyncLogRes response) {
+    StepTracker.trace(
+        "dispatcherSendBatch-" + this.thread.getPeer().getEndpoint().getIp(),
+        10,
+        startTime,
+        System.nanoTime());
     if (response.getStatus().size() == 1
         && response.getStatus().get(0).getCode()
             == TSStatusCode.INTERNAL_SERVER_ERROR.getStatusCode()) {
@@ -62,13 +67,8 @@ public class DispatchLogHandler implements AsyncMethodCallback<TSyncLogRes> {
       thread.getSyncStatus().removeBatch(batch);
     }
     StepTracker.trace(
-        "dispatcherSendBatch-" + this.thread.getPeer().getEndpoint().getIp(),
-        100,
-        startTime,
-        System.nanoTime());
-    StepTracker.trace(
         "dispatcherBatchSize-" + this.thread.getPeer().getEndpoint().getIp(),
-        100,
+        10,
         0,
         this.batch.getBatches().size() * 1000_000L);
   }
