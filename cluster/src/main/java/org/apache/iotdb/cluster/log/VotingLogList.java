@@ -78,9 +78,7 @@ public class VotingLogList {
         VotingLog votingLog = logList.get(i);
         if (votingLog.getLog().getCurrLogIndex() <= index
             && votingLog.getLog().getCurrLogTerm() == term) {
-          synchronized (votingLog) {
-            votingLog.getStronglyAcceptedNodeIds().add(acceptingNodeId);
-          }
+          votingLog.getStronglyAcceptedNodeIds().add(acceptingNodeId);
           if (votingLog.getStronglyAcceptedNodeIds().size() >= quorumSize) {
             lastEntryIndexToCommit = i;
           }
@@ -110,8 +108,8 @@ public class VotingLogList {
       }
 
       for (VotingLog acceptedLog : acceptedLogs) {
+        acceptedLog.acceptedTime.set(System.nanoTime());
         synchronized (acceptedLog) {
-          acceptedLog.acceptedTime.set(System.nanoTime());
           acceptedLog.notifyAll();
         }
         if (ClusterDescriptor.getInstance().getConfig().isUseIndirectBroadcasting()) {

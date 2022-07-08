@@ -323,6 +323,10 @@ public class ClusterDescriptor {
             properties.getProperty(
                 "use_follower_sliding_window",
                 String.valueOf(config.isUseFollowerSlidingWindow()))));
+    config.setSlidingWindowSize(
+        Integer.parseInt(
+            properties.getProperty(
+                "sliding_window_size", String.valueOf(config.getSlidingWindowSize()))));
 
     config.setEnableWeakAcceptance(
         Boolean.parseBoolean(

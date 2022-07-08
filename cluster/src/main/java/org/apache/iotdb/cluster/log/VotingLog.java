@@ -32,10 +32,10 @@ public class VotingLog {
 
   public VotingLog(Log log, int groupSize) {
     this.log = log;
-    stronglyAcceptedNodeIds = new HashSet<>(groupSize);
-    weaklyAcceptedNodeIds = new HashSet<>(groupSize);
+    stronglyAcceptedNodeIds = new HashSet<>(groupSize * 2);
+    weaklyAcceptedNodeIds = new HashSet<>(groupSize * 2);
     acceptedTime = new AtomicLong();
-    failedNodeIds = new HashSet<>(groupSize);
+    failedNodeIds = new HashSet<>(groupSize * 2);
   }
 
   public VotingLog(VotingLog another) {

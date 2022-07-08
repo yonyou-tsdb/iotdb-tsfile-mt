@@ -90,6 +90,7 @@ public class AppendNodeEntryHandler implements AsyncMethodCallback<AppendEntryRe
     long resp = response.status;
 
     if (resp == RESPONSE_STRONG_ACCEPT || resp == RESPONSE_AGREE) {
+      long operationStartTime = Statistic.RAFT_SENDER_HANDLE_STRONG_ACCEPT.getOperationStartTime();
       member
           .getVotingLogList()
           .onStronglyAccept(
@@ -97,6 +98,7 @@ public class AppendNodeEntryHandler implements AsyncMethodCallback<AppendEntryRe
               log.getLog().getCurrLogTerm(),
               trueReceiver.nodeIdentifier);
       member.getPeer(trueReceiver).setMatchIndex(response.lastLogIndex);
+      Statistic.RAFT_SENDER_HANDLE_STRONG_ACCEPT.calOperationCostTimeFromStart(operationStartTime);
     } else if (resp > 0) {
       // a response > 0 is the follower's term
       // the leader ship is stale, wait for the new leader's heartbeat
@@ -120,14 +122,18 @@ public class AppendNodeEntryHandler implements AsyncMethodCallback<AppendEntryRe
             new Pair<>(log.getLog().getCurrLogIndex(), log.getLog().getCurrLogTerm()));
       }
     } else if (resp == RESPONSE_WEAK_ACCEPT) {
-      synchronized (log) {
+      long operationStartTime = Statistic.RAFT_SENDER_HANDLE_WEAK_ACCEPT.getOperationStartTime();
+      synchronized (log.getWeaklyAcceptedNodeIds()) {
         log.getWeaklyAcceptedNodeIds().add(trueReceiver.nodeIdentifier);
-        if (log.getWeaklyAcceptedNodeIds().size() + log.getStronglyAcceptedNodeIds().size()
-            >= quorumSize) {
-          log.acceptedTime.set(System.nanoTime());
-        }
+      }
+      if (log.getWeaklyAcceptedNodeIds().size() + log.getStronglyAcceptedNodeIds().size()
+          >= quorumSize) {
+        log.acceptedTime.set(System.nanoTime());
+      }
+      synchronized (log) {
         log.notifyAll();
       }
+      Statistic.RAFT_SENDER_HANDLE_WEAK_ACCEPT.calOperationCostTimeFromStart(operationStartTime);
     } else {
       // e.g., Response.RESPONSE_LOG_MISMATCH
       if (resp == RESPONSE_LOG_MISMATCH || resp == RESPONSE_OUT_OF_WINDOW) {

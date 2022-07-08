@@ -598,6 +598,14 @@ public abstract class RaftMember implements RaftMemberMBean {
     long operationStartTime = Statistic.RAFT_RECEIVER_APPEND_ENTRY_FULL.getOperationStartTime();
     Thread.currentThread()
         .setName(getThreadBaseName() + "-appending-" + (request.prevLogIndex + 1));
+    //    if (true) {
+    //      AppendEntryResult result = new AppendEntryResult();
+    //      result.setLastLogTerm(request.prevLogTerm);
+    //      result.setLastLogIndex(request.prevLogIndex + 1);
+    //      result.setStatus(Response.RESPONSE_STRONG_ACCEPT);
+    //      result.setHeader(getHeader());
+    //      return result;
+    //    }
     AppendEntryResult result = appendEntryInternal(request);
     Statistic.RAFT_RECEIVER_APPEND_ENTRY_FULL.calOperationCostTimeFromStart(operationStartTime);
     return result;
@@ -1761,14 +1769,7 @@ public abstract class RaftMember implements RaftMemberMBean {
           logger.warn("Unexpected interruption when sending a log", e);
         }
         Thread.currentThread()
-            .setName(
-                threadBaseName
-                    + "-waiting-"
-                    + log.getLog().getCurrLogIndex()
-                    + "-"
-                    + log.getStronglyAcceptedNodeIds()
-                    + "-"
-                    + log.getWeaklyAcceptedNodeIds());
+            .setName(threadBaseName + "-waiting-" + log.getLog().getCurrLogIndex());
         alreadyWait = (System.nanoTime() - waitStart) / 1000000;
         if (alreadyWait > nextTimeToPrint) {
           logger.info(

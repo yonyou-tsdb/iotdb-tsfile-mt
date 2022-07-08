@@ -24,6 +24,7 @@ import org.apache.iotdb.cluster.exception.CheckConsistencyException;
 import org.apache.iotdb.cluster.log.Log;
 import org.apache.iotdb.cluster.log.logtypes.AddNodeLog;
 import org.apache.iotdb.cluster.log.logtypes.CloseFileLog;
+import org.apache.iotdb.cluster.log.logtypes.FragmentedLog;
 import org.apache.iotdb.cluster.log.logtypes.PhysicalPlanLog;
 import org.apache.iotdb.cluster.log.logtypes.RemoveNodeLog;
 import org.apache.iotdb.cluster.server.member.DataGroupMember;
@@ -91,7 +92,7 @@ public class DataLogApplier extends BaseApplier {
                 closeFileLog.getPartitionId(),
                 closeFileLog.isSeq(),
                 false);
-      } else {
+      } else if (!(log instanceof FragmentedLog)) {
         logger.error("Unsupported log: {}", log);
       }
     } catch (Exception e) {

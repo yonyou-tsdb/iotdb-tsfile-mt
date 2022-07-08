@@ -45,13 +45,13 @@ public class FragmentedLogDispatcher extends LogDispatcher {
 
     long startTime = Statistic.LOG_DISPATCHER_LOG_ENQUEUE.getOperationStartTime();
     request.getVotingLog().getLog().setEnqueueTime(System.nanoTime());
-    for (int i = 0; i < nodesLogQueues.size(); i++) {
-      BlockingQueue<SendLogRequest> nodeLogQueue = nodesLogQueues.get(i);
+    int i = 0;
+    for (BlockingQueue<SendLogRequest> nodeLogQueue : nodesLogQueues.values()) {
       SendLogRequest fragmentedRequest = new SendLogRequest(request);
       fragmentedRequest.setVotingLog(new VotingLog(request.getVotingLog()));
       fragmentedRequest
           .getVotingLog()
-          .setLog(new FragmentedLog((FragmentedLog) request.getVotingLog().getLog(), i));
+          .setLog(new FragmentedLog((FragmentedLog) request.getVotingLog().getLog(), i++));
       try {
         boolean addSucceeded;
         if (ClusterDescriptor.getInstance().getConfig().isWaitForSlowNode()) {

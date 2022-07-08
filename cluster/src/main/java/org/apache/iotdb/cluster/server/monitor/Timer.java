@@ -152,6 +152,18 @@ public class Timer {
         TIME_SCALE,
         true,
         RAFT_SENDER_SEND_LOG_TO_FOLLOWERS),
+    RAFT_SENDER_HANDLE_STRONG_ACCEPT(
+        RAFT_MEMBER_SENDER,
+        "handle strong accept",
+        TIME_SCALE,
+        true,
+        RAFT_SENDER_SEND_LOG_TO_FOLLOWERS),
+    RAFT_SENDER_HANDLE_WEAK_ACCEPT(
+        RAFT_MEMBER_SENDER,
+        "handle weak accept",
+        TIME_SCALE,
+        true,
+        RAFT_SENDER_SEND_LOG_TO_FOLLOWERS),
     RAFT_RECEIVER_RELAY_OFFER_LOG(
         RAFT_MEMBER_RECEIVER,
         "relay offer log",

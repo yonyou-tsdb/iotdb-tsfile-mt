@@ -185,6 +185,7 @@ public class ClusterConfig {
   private boolean useAsyncSequencing = true;
 
   private boolean useFollowerSlidingWindow = true;
+  private int slidingWindowSize = 10000;
 
   private boolean enableWeakAcceptance = true;
 
@@ -599,5 +600,13 @@ public class ClusterConfig {
 
   public void setOptimizeIndirectBroadcasting(boolean optimizeIndirectBroadcasting) {
     this.optimizeIndirectBroadcasting = optimizeIndirectBroadcasting;
+  }
+
+  public int getSlidingWindowSize() {
+    return slidingWindowSize;
+  }
+
+  public void setSlidingWindowSize(int slidingWindowSize) {
+    this.slidingWindowSize = slidingWindowSize;
   }
 }

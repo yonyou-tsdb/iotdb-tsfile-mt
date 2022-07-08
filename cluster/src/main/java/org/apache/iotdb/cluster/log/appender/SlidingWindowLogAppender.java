@@ -40,7 +40,7 @@ public class SlidingWindowLogAppender implements LogAppender {
 
   private static final Logger logger = LoggerFactory.getLogger(SlidingWindowLogAppender.class);
 
-  private int windowCapacity = ClusterDescriptor.getInstance().getConfig().getMaxNumOfLogsInMem();
+  private int windowCapacity = ClusterDescriptor.getInstance().getConfig().getSlidingWindowSize();
   private int windowLength = 0;
   private Log[] logWindow = new Log[windowCapacity];
   private long firstPosPrevIndex;
@@ -48,6 +48,7 @@ public class SlidingWindowLogAppender implements LogAppender {
 
   private RaftMember member;
   private RaftLogManager logManager;
+  private Object oowWaitCond = new Object();
 
   public SlidingWindowLogAppender(RaftMember member) {
     this.member = member;
@@ -144,6 +145,7 @@ public class SlidingWindowLogAppender implements LogAppender {
     for (int i = 1; i <= step; i++) {
       logWindow[windowCapacity - i] = null;
     }
+    windowLength -= step;
     firstPosPrevIndex = logManager.getLastLogIndex();
   }
 
@@ -197,7 +199,9 @@ public class SlidingWindowLogAppender implements LogAppender {
       retryTime = System.currentTimeMillis() - start;
       if (result.status == Response.RESPONSE_OUT_OF_WINDOW && retryTime < maxRetry) {
         try {
-          Thread.sleep(10);
+          synchronized (oowWaitCond) {
+            oowWaitCond.wait(1);
+          }
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
           break;
@@ -219,6 +223,7 @@ public class SlidingWindowLogAppender implements LogAppender {
     long appendedPos = 0;
 
     AppendEntryResult result = new AppendEntryResult();
+    boolean flushed = false;
     synchronized (logManager) {
       int windowPos = (int) (log.getCurrLogIndex() - logManager.getLastLogIndex() - 1);
       if (windowPos < 0) {
@@ -238,6 +243,7 @@ public class SlidingWindowLogAppender implements LogAppender {
         checkLog(windowPos);
         if (windowPos == 0) {
           appendedPos = flushWindow(result, leaderCommit);
+          flushed = true;
         } else {
           result.status = Response.RESPONSE_WEAK_ACCEPT;
         }
@@ -247,6 +253,12 @@ public class SlidingWindowLogAppender implements LogAppender {
         result.setStatus(Response.RESPONSE_OUT_OF_WINDOW);
         result.setHeader(member.getPartitionGroup().getHeader());
         return result;
+      }
+    }
+
+    if (flushed) {
+      synchronized (oowWaitCond) {
+        oowWaitCond.notifyAll();
       }
     }
 

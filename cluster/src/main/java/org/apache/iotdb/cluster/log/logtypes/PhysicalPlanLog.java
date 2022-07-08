@@ -57,9 +57,21 @@ public class PhysicalPlanLog extends Log {
     return DEFAULT_BUFFER_SIZE;
   }
 
+  private ThreadLocal<PublicBAOS> baosThreadLocal = new ThreadLocal<>();
+
+  private PublicBAOS getSerializeOutputStream() {
+    PublicBAOS publicBAOS = baosThreadLocal.get();
+    if (publicBAOS == null) {
+      publicBAOS = new PublicBAOS(getDefaultBufferSize());
+      baosThreadLocal.set(publicBAOS);
+    }
+    publicBAOS.reset();
+    return publicBAOS;
+  }
+
   @Override
   public ByteBuffer serialize() {
-    PublicBAOS byteArrayOutputStream = new PublicBAOS(getDefaultBufferSize());
+    PublicBAOS byteArrayOutputStream = getSerializeOutputStream();
     try (DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream)) {
       dataOutputStream.writeByte((byte) PHYSICAL_PLAN.ordinal());
 

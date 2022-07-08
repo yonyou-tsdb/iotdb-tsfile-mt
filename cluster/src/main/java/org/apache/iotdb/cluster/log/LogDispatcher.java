@@ -80,7 +80,7 @@ public class LogDispatcher {
   Map<Node, Boolean> nodesEnabled = new HashMap<>();
   ExecutorService executorService;
   private static ExecutorService serializationService =
-      IoTDBThreadPoolFactory.newFixedThreadPoolWithDaemonThread(
+      IoTDBThreadPoolFactory.newFixedThreadPool(
           Runtime.getRuntime().availableProcessors(), "DispatcherEncoder");
 
   public static int bindingThreadNum = clusterConfig.getDispatcherBindingThreadNum();
