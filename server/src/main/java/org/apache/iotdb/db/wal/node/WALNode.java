@@ -18,6 +18,7 @@
  */
 package org.apache.iotdb.db.wal.node;
 
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.commons.consensus.DataRegionId;
 import org.apache.iotdb.commons.exception.IllegalPathException;
@@ -203,6 +204,7 @@ public class WALNode implements IWALNode {
   }
 
   // region Task to delete outdated .wal files
+
   /** Delete outdated .wal files */
   public void deleteOutdatedFiles() {
     try {
@@ -680,146 +682,143 @@ public class WALNode implements IWALNode {
 
     @Override
     public boolean hasNext() {
-      if (itr != null && itr.hasNext()) {
-        return true;
-      }
-
-      // clear outdated iterator
-      insertNodes.clear();
-      itr = null;
-
-      // update files to search
-      if (needUpdatingFilesToSearch || filesToSearch == null) {
-        updateFilesToSearch();
-        if (needUpdatingFilesToSearch) {
-          logger.warn("update file to search index = {} failed.", nextSearchIndex);
-          return false;
+      long hasNextStartTime = System.nanoTime();
+      try {
+        if (itr != null && itr.hasNext()) {
+          return true;
         }
-      }
 
-      // find file contains search index
-      while (WALFileUtils.parseStatusCode(filesToSearch[currentFileIndex].getName())
-          == WALFileStatus.CONTAINS_NONE_SEARCH_INDEX) {
-        currentFileIndex++;
-        if (currentFileIndex >= filesToSearch.length) {
-          needUpdatingFilesToSearch = true;
-          return false;
+        // clear outdated iterator
+        insertNodes.clear();
+        itr = null;
+
+        // update files to search
+        if (needUpdatingFilesToSearch || filesToSearch == null) {
+          updateFilesToSearch();
+          if (needUpdatingFilesToSearch) {
+            logger.warn("update file to search index = {} failed.", nextSearchIndex);
+            return false;
+          }
         }
-      }
 
-      // find file contains search index
-      while (WALFileUtils.parseStatusCode(filesToSearch[currentFileIndex].getName())
-          == WALFileStatus.CONTAINS_NONE_SEARCH_INDEX) {
-        currentFileIndex++;
-        if (currentFileIndex >= filesToSearch.length) {
-          needUpdatingFilesToSearch = true;
-          return false;
+        // find file contains search index
+        while (WALFileUtils.parseStatusCode(filesToSearch[currentFileIndex].getName())
+            == WALFileStatus.CONTAINS_NONE_SEARCH_INDEX) {
+          currentFileIndex++;
+          if (currentFileIndex >= filesToSearch.length) {
+            needUpdatingFilesToSearch = true;
+            return false;
+          }
         }
-      }
 
-      // find all insert plan of current wal file
-      List<InsertNode> tmpNodes = new ArrayList<>();
-      long targetIndex = nextSearchIndex;
-      try (WALReader walReader = new WALReader(filesToSearch[currentFileIndex])) {
-        while (walReader.hasNext()) {
-          WALEntry walEntry = walReader.next();
-          if (walEntry.getType() == WALEntryType.INSERT_TABLET_NODE
-              || walEntry.getType() == WALEntryType.INSERT_ROW_NODE) {
-            InsertNode insertNode = (InsertNode) walEntry.getValue();
-            if (insertNode.getSearchIndex() == targetIndex) {
-              tmpNodes.add(insertNode);
+        // find all insert plan of current wal file
+        List<InsertNode> tmpNodes = new ArrayList<>();
+        long targetIndex = nextSearchIndex;
+        try (WALReader walReader = new WALReader(filesToSearch[currentFileIndex])) {
+          while (walReader.hasNext()) {
+            WALEntry walEntry = walReader.next();
+            if (walEntry.getType() == WALEntryType.INSERT_TABLET_NODE
+                || walEntry.getType() == WALEntryType.INSERT_ROW_NODE) {
+              InsertNode insertNode = (InsertNode) walEntry.getValue();
+              if (insertNode.getSearchIndex() == targetIndex) {
+                tmpNodes.add(insertNode);
+              } else if (!tmpNodes.isEmpty()) { // find all slices of insert plan
+                insertNodes.add(mergeInsertNodes(tmpNodes));
+                targetIndex++;
+                tmpNodes = new ArrayList<>();
+                // remember to add current insert node
+                if (insertNode.getSearchIndex() == targetIndex) {
+                  tmpNodes.add(insertNode);
+                }
+              }
             } else if (!tmpNodes.isEmpty()) { // find all slices of insert plan
               insertNodes.add(mergeInsertNodes(tmpNodes));
               targetIndex++;
               tmpNodes = new ArrayList<>();
-              // remember to add current insert node
-              if (insertNode.getSearchIndex() == targetIndex) {
-                tmpNodes.add(insertNode);
-              }
             }
-          } else if (!tmpNodes.isEmpty()) { // find all slices of insert plan
-            insertNodes.add(mergeInsertNodes(tmpNodes));
-            targetIndex++;
-            tmpNodes = new ArrayList<>();
           }
+        } catch (FileNotFoundException e) {
+          logger.debug(
+              "WAL file {} has been deleted, try to find next {} again.",
+              identifier,
+              nextSearchIndex);
+          reset();
+          hasNext();
+        } catch (Exception e) {
+          logger.error("Fail to read wal from wal file {}", filesToSearch[currentFileIndex], e);
         }
-      } catch (FileNotFoundException e) {
-        logger.debug(
-            "WAL file {} has been deleted, try to find next {} again.",
-            identifier,
-            nextSearchIndex);
-        reset();
-        hasNext();
-      } catch (Exception e) {
-        logger.error("Fail to read wal from wal file {}", filesToSearch[currentFileIndex], e);
-      }
 
-      // find remaining slices of last insert plan of targetIndex
-      if (tmpNodes.isEmpty()) { // all insert plans scanned
-        currentFileIndex++;
-      } else {
-        int fileIndex = currentFileIndex + 1;
-        while (!tmpNodes.isEmpty() && fileIndex < filesToSearch.length) {
-          // cannot find any in this file, find all slices of last insert plan
-          if (WALFileUtils.parseStatusCode(filesToSearch[fileIndex].getName())
-              == WALFileStatus.CONTAINS_NONE_SEARCH_INDEX) {
-            insertNodes.add(mergeInsertNodes(tmpNodes));
-            tmpNodes = Collections.emptyList();
-            break;
-          }
+        // find remaining slices of last insert plan of targetIndex
+        if (tmpNodes.isEmpty()) { // all insert plans scanned
+          currentFileIndex++;
+        } else {
+          long nextFileStartTime = System.nanoTime();
+          int fileIndex = currentFileIndex + 1;
+          while (!tmpNodes.isEmpty() && fileIndex < filesToSearch.length) {
+            // cannot find any in this file, find all slices of last insert plan
+            if (WALFileUtils.parseStatusCode(filesToSearch[fileIndex].getName())
+                == WALFileStatus.CONTAINS_NONE_SEARCH_INDEX) {
+              insertNodes.add(mergeInsertNodes(tmpNodes));
+              tmpNodes = Collections.emptyList();
+              break;
+            }
 
-          try (WALReader walReader = new WALReader(filesToSearch[fileIndex])) {
-            while (walReader.hasNext()) {
-              WALEntry walEntry = walReader.next();
-              if (walEntry.getType() == WALEntryType.INSERT_TABLET_NODE
-                  || walEntry.getType() == WALEntryType.INSERT_ROW_NODE) {
-                InsertNode insertNode = (InsertNode) walEntry.getValue();
-                if (insertNode.getSearchIndex() == targetIndex) {
-                  tmpNodes.add(insertNode);
+            try (WALReader walReader = new WALReader(filesToSearch[fileIndex])) {
+              while (walReader.hasNext()) {
+                WALEntry walEntry = walReader.next();
+                if (walEntry.getType() == WALEntryType.INSERT_TABLET_NODE
+                    || walEntry.getType() == WALEntryType.INSERT_ROW_NODE) {
+                  InsertNode insertNode = (InsertNode) walEntry.getValue();
+                  if (insertNode.getSearchIndex() == targetIndex) {
+                    tmpNodes.add(insertNode);
+                  } else if (!tmpNodes.isEmpty()) { // find all slices of insert plan
+                    insertNodes.add(mergeInsertNodes(tmpNodes));
+                    tmpNodes = Collections.emptyList();
+                    break;
+                  }
                 } else if (!tmpNodes.isEmpty()) { // find all slices of insert plan
                   insertNodes.add(mergeInsertNodes(tmpNodes));
                   tmpNodes = Collections.emptyList();
                   break;
                 }
-              } else if (!tmpNodes.isEmpty()) { // find all slices of insert plan
-                insertNodes.add(mergeInsertNodes(tmpNodes));
-                tmpNodes = Collections.emptyList();
-                break;
               }
+            } catch (FileNotFoundException e) {
+              logger.debug(
+                  "WAL file {} has been deleted, try to find next {} again.",
+                  identifier,
+                  nextSearchIndex);
+              reset();
+              hasNext();
+            } catch (Exception e) {
+              logger.error("Fail to read wal from wal file {}", filesToSearch[currentFileIndex], e);
             }
-          } catch (FileNotFoundException e) {
-            logger.debug(
-                "WAL file {} has been deleted, try to find next {} again.",
-                identifier,
-                nextSearchIndex);
-            reset();
-            hasNext();
-          } catch (Exception e) {
-            logger.error("Fail to read wal from wal file {}", filesToSearch[currentFileIndex], e);
+            if (!tmpNodes.isEmpty()) {
+              fileIndex++;
+            }
           }
-          if (!tmpNodes.isEmpty()) {
-            fileIndex++;
+
+          if (tmpNodes.isEmpty()) { // all insert plans scanned
+            currentFileIndex = fileIndex;
+          } else {
+            needUpdatingFilesToSearch = true;
           }
+          StepTracker.trace("nextFileStartTime", 10, nextFileStartTime, System.nanoTime());
         }
 
-        if (tmpNodes.isEmpty()) { // all insert plans scanned
-          currentFileIndex = fileIndex;
-        } else {
+        // update file index and version id
+        if (currentFileIndex >= filesToSearch.length) {
           needUpdatingFilesToSearch = true;
         }
-      }
 
-      // update file index and version id
-      if (currentFileIndex >= filesToSearch.length) {
-        needUpdatingFilesToSearch = true;
+        // update iterator
+        if (insertNodes.size() != 0) {
+          itr = insertNodes.iterator();
+          return true;
+        }
+        return false;
+      } finally {
+        StepTracker.trace("WALNode.hasNext()", 400, hasNextStartTime, System.nanoTime());
       }
-
-      // update iterator
-      if (insertNodes.size() != 0) {
-        itr = insertNodes.iterator();
-        return true;
-      }
-      return false;
     }
 
     @Override

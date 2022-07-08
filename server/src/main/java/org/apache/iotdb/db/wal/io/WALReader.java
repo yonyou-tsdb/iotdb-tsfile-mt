@@ -68,38 +68,43 @@ public class WALReader implements Closeable {
 
   /** Like {@link Iterator#hasNext()} */
   public boolean hasNext() {
-    if (itr != null && itr.hasNext()) {
-      return true;
-    }
-    // read WALEntries from log stream
+    long hasNextStartTime = System.nanoTime();
     try {
-      if (fileCorrupted) {
-        return false;
+      if (itr != null && itr.hasNext()) {
+        return true;
       }
-      walEntries.clear();
-      while (walEntries.size() < BATCH_LIMIT) {
-        long startTime = System.nanoTime();
-        WALEntry walEntry = WALEntry.deserialize(logStream);
-        StepTracker.trace("walEntryDeserialize", 1000, startTime, System.nanoTime());
-        walEntries.add(walEntry);
+      // read WALEntries from log stream
+      try {
+        if (fileCorrupted) {
+          return false;
+        }
+        walEntries.clear();
+        while (walEntries.size() < BATCH_LIMIT) {
+          long startTime = System.nanoTime();
+          WALEntry walEntry = WALEntry.deserialize(logStream);
+          StepTracker.trace("walEntryDeserialize", 1000, startTime, System.nanoTime());
+          walEntries.add(walEntry);
+        }
+      } catch (EOFException e) {
+        // reach end of wal file
+        fileCorrupted = true;
+      } catch (IllegalPathException e) {
+        fileCorrupted = true;
+        logger.warn(
+            "WALEntry of wal file {} contains illegal path, skip illegal WALEntries.", logFile, e);
+      } catch (Exception e) {
+        fileCorrupted = true;
+        logger.warn("Fail to read WALEntry from wal file {}, skip broken WALEntries.", logFile, e);
       }
-    } catch (EOFException e) {
-      // reach end of wal file
-      fileCorrupted = true;
-    } catch (IllegalPathException e) {
-      fileCorrupted = true;
-      logger.warn(
-          "WALEntry of wal file {} contains illegal path, skip illegal WALEntries.", logFile, e);
-    } catch (Exception e) {
-      fileCorrupted = true;
-      logger.warn("Fail to read WALEntry from wal file {}, skip broken WALEntries.", logFile, e);
-    }
 
-    if (walEntries.size() != 0) {
-      itr = walEntries.iterator();
-      return true;
+      if (walEntries.size() != 0) {
+        itr = walEntries.iterator();
+        return true;
+      }
+      return false;
+    } finally {
+      StepTracker.trace("WALReader.hasNext()", 400, hasNextStartTime, System.nanoTime());
     }
-    return false;
   }
 
   /** Like {@link Iterator#next()} */
