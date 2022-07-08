@@ -30,6 +30,8 @@ import org.apache.thrift.async.AsyncMethodCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+
 public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIService.AsyncIface {
 
   private final Logger logger = LoggerFactory.getLogger(MultiLeaderRPCServiceProcessor.class);
@@ -72,7 +74,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
       //      }
       //      logger.debug("Execute TSyncLogReq for {} with result {}", req.consensusGroupId,
       // statuses);
-      resultHandler.onComplete(new TSyncLogRes());
+      resultHandler.onComplete(new TSyncLogRes(new ArrayList<>()));
     } catch (Exception e) {
       resultHandler.onError(e);
     } finally {
