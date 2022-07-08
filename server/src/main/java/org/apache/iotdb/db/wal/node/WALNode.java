@@ -477,6 +477,7 @@ public class WALNode implements IWALNode {
    * upper layer.
    */
   private static InsertNode mergeInsertNodes(List<InsertNode> insertNodes) {
+    StepTracker.trace("mergeInsertNodeSize", 400, 0, insertNodes.size() * 1000_1000L);
     int size = insertNodes.size();
     if (size == 0) {
       return null;
