@@ -49,7 +49,7 @@ public class WALReader implements Closeable {
   private static final int STREAM_BUFFER_SIZE =
       (int) IoTDBDescriptor.getInstance().getConfig().getWalFileSizeThresholdInByte() / 10;
   /** 1000 as default batch limit */
-  private static final int BATCH_LIMIT = 1_000;
+  private static final int BATCH_LIMIT = 1;
 
   private final File logFile;
   private final DataInputStream logStream;
