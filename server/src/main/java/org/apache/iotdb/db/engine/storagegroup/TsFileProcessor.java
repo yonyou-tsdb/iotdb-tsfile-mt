@@ -785,18 +785,16 @@ public class TsFileProcessor {
     memTableIncrement += textDataIncrement;
     storageGroupInfo.addStorageGroupMemCost(memTableIncrement);
     tsFileProcessorInfo.addTSPMemCost(chunkMetadataIncrement);
-    if (storageGroupInfo.needToReportToSystem()) {
-      WriteMemoryController controller = WriteMemoryController.getInstance();
-      try {
-        if (!controller.tryAllocateMemory(memTableIncrement, this)) {
-          StorageEngine.blockInsertionIfReject(this);
-        }
-      } catch (WriteProcessRejectException e) {
-        storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
-        tsFileProcessorInfo.releaseTSPMemCost(chunkMetadataIncrement);
-        SystemInfo.getInstance().resetStorageGroupStatus(storageGroupInfo);
-        throw e;
+    WriteMemoryController controller = WriteMemoryController.getInstance();
+    try {
+      if (!controller.tryAllocateMemory(memTableIncrement, storageGroupInfo, this)) {
+        StorageEngine.blockInsertionIfReject(this);
       }
+    } catch (WriteProcessRejectException e) {
+      storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
+      tsFileProcessorInfo.releaseTSPMemCost(chunkMetadataIncrement);
+      SystemInfo.getInstance().resetStorageGroupStatus(storageGroupInfo);
+      throw e;
     }
     workMemTable.addTVListRamCost(memTableIncrement);
     workMemTable.addTextDataSize(textDataIncrement);

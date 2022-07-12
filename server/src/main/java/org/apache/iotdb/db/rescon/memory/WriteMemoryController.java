@@ -24,11 +24,16 @@ import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.engine.storagegroup.StorageGroupInfo;
 import org.apache.iotdb.db.engine.storagegroup.TsFileProcessor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
 public class WriteMemoryController extends MemoryController<TsFileProcessor> {
+  private static final Logger logger = LoggerFactory.getLogger(WriteMemoryController.class);
   private static volatile WriteMemoryController INSTANCE;
   private static final IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
   private static final long memorySizeForWrite = config.getAllocateMemoryForWrite();
@@ -49,8 +54,14 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   public boolean tryAllocateMemory(long size, StorageGroupInfo info, TsFileProcessor processor) {
     boolean success = super.tryAllocateMemory(size, processor);
     if (memoryUsage.get() > REJECT_THRESHOLD) {
+      logger.info(
+          "Change system to reject status. Triggered by: logical SG ({}), mem cost delta ({}), totalSgMemCost ({}).",
+          info.getDataRegion().getLogicalStorageGroupName(),
+          size,
+          memoryUsage.get());
       rejected = true;
     }
+    reportedStorageGroupMemCostMap.put(info, info.getMemCost());
     return success;
   }
 
@@ -69,5 +80,36 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     return INSTANCE;
   }
 
-  protected void chooseMemtableToFlush(TsFileProcessor processor) {}
+  protected void chooseMemtableToFlush(TsFileProcessor currentTsFileProcessor) {
+    // If invoke flush by replaying logs, do not flush now!
+    if (reportedStorageGroupMemCostMap.size() == 0) {
+      return;
+    }
+    PriorityQueue<TsFileProcessor> allTsFileProcessors =
+        new PriorityQueue<>(
+            (o1, o2) -> Long.compare(o2.getWorkMemTableRamCost(), o1.getWorkMemTableRamCost()));
+    for (StorageGroupInfo storageGroupInfo : reportedStorageGroupMemCostMap.keySet()) {
+      allTsFileProcessors.addAll(storageGroupInfo.getAllReportedTsp());
+    }
+    boolean isCurrentTsFileProcessorSelected = false;
+    long memCost = 0;
+    long activeMemSize = memoryUsage.get();
+    while (activeMemSize - memCost > FLUSH_THRESHOLD) {
+      if (allTsFileProcessors.isEmpty()
+          || allTsFileProcessors.peek().getWorkMemTableRamCost() == 0) {
+        return;
+      }
+      TsFileProcessor selectedTsFileProcessor = allTsFileProcessors.peek();
+      if (selectedTsFileProcessor == null) {
+        break;
+      }
+      memCost += selectedTsFileProcessor.getWorkMemTableRamCost();
+      selectedTsFileProcessor.setWorkMemTableShouldFlush();
+      flushTaskSubmitThreadPool.submit(selectedTsFileProcessor::submitAFlushTask);
+      if (selectedTsFileProcessor == currentTsFileProcessor) {
+        isCurrentTsFileProcessorSelected = true;
+      }
+      allTsFileProcessors.poll();
+    }
+  }
 }
