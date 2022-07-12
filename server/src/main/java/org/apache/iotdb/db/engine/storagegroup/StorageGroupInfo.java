@@ -19,7 +19,7 @@
 package org.apache.iotdb.db.engine.storagegroup;
 
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
-import org.apache.iotdb.db.rescon.SystemInfo;
+import org.apache.iotdb.db.rescon.memory.WriteMemoryController;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -75,10 +75,6 @@ public class StorageGroupInfo {
     return reportedTsps;
   }
 
-  public boolean needToReportToSystem() {
-    return memoryCost.get() - lastReportedSize.get() > storageGroupSizeReportThreshold;
-  }
-
   public void setLastReportedSize(long size) {
     lastReportedSize.set(size);
   }
@@ -91,6 +87,6 @@ public class StorageGroupInfo {
    */
   public void closeTsFileProcessorAndReportToSystem(TsFileProcessor tsFileProcessor) {
     reportedTsps.remove(tsFileProcessor);
-    SystemInfo.getInstance().resetStorageGroupStatus(this);
+    WriteMemoryController.getInstance().resetStorageGroupInfo(this);
   }
 }

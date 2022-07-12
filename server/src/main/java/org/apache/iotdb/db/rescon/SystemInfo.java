@@ -162,10 +162,6 @@ public class SystemInfo {
     }
   }
 
-  public synchronized void addFlushingMemTableCost(long flushingMemTableCost) {
-    this.flushingMemTablesCost += flushingMemTableCost;
-  }
-
   public synchronized void resetFlushingMemTableCost(long flushingMemTableCost) {
     this.flushingMemTablesCost -= flushingMemTableCost;
   }

@@ -55,7 +55,6 @@ import org.apache.iotdb.db.qp.physical.crud.InsertTabletPlan;
 import org.apache.iotdb.db.query.context.QueryContext;
 import org.apache.iotdb.db.rescon.MemTableManager;
 import org.apache.iotdb.db.rescon.PrimitiveArrayManager;
-import org.apache.iotdb.db.rescon.SystemInfo;
 import org.apache.iotdb.db.rescon.memory.WriteMemoryController;
 import org.apache.iotdb.db.sync.sender.manager.TsFileSyncManager;
 import org.apache.iotdb.db.utils.MemUtils;
@@ -786,14 +785,16 @@ public class TsFileProcessor {
     storageGroupInfo.addStorageGroupMemCost(memTableIncrement);
     tsFileProcessorInfo.addTSPMemCost(chunkMetadataIncrement);
     WriteMemoryController controller = WriteMemoryController.getInstance();
+    boolean allocateMemory = false;
     try {
-      if (!controller.tryAllocateMemory(memTableIncrement, storageGroupInfo, this)) {
+      allocateMemory = controller.tryAllocateMemory(memTableIncrement, storageGroupInfo, this);
+      if (!allocateMemory) {
         StorageEngine.blockInsertionIfReject(this);
       }
     } catch (WriteProcessRejectException e) {
       storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
       tsFileProcessorInfo.releaseTSPMemCost(chunkMetadataIncrement);
-      SystemInfo.getInstance().resetStorageGroupStatus(storageGroupInfo);
+      controller.resetStorageGroupInfo(storageGroupInfo);
       throw e;
     }
     workMemTable.addTVListRamCost(memTableIncrement);
@@ -808,7 +809,8 @@ public class TsFileProcessor {
     memTableIncrement += textDataIncrement;
     storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
     tsFileProcessorInfo.releaseTSPMemCost(chunkMetadataIncrement);
-    SystemInfo.getInstance().resetStorageGroupStatus(storageGroupInfo);
+    WriteMemoryController.getInstance().releaseMemory(memTableIncrement);
+    WriteMemoryController.getInstance().resetStorageGroupInfo(storageGroupInfo);
     workMemTable.releaseTVListRamCost(memTableIncrement);
     workMemTable.releaseTextDataSize(textDataIncrement);
   }
@@ -1111,9 +1113,6 @@ public class TsFileProcessor {
       flushListener.onMemTableFlushStarted(tobeFlushed);
     }
 
-    if (enableMemControl) {
-      SystemInfo.getInstance().addFlushingMemTableCost(tobeFlushed.getTVListsRamCost());
-    }
     flushingMemTables.addLast(tobeFlushed);
     if (logger.isDebugEnabled()) {
       logger.debug(
@@ -1169,8 +1168,8 @@ public class TsFileProcessor {
               flushingMemTables.size());
         }
         // report to System
-        SystemInfo.getInstance().resetStorageGroupStatus(storageGroupInfo);
-        SystemInfo.getInstance().resetFlushingMemTableCost(memTable.getTVListsRamCost());
+        WriteMemoryController.getInstance().resetStorageGroupInfo(storageGroupInfo);
+        WriteMemoryController.getInstance().releaseMemory(memTable.getTVListsRamCost());
       }
       if (logger.isDebugEnabled()) {
         logger.debug(

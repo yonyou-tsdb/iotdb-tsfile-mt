@@ -91,7 +91,6 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     for (StorageGroupInfo storageGroupInfo : reportedStorageGroupMemCostMap.keySet()) {
       allTsFileProcessors.addAll(storageGroupInfo.getAllReportedTsp());
     }
-    boolean isCurrentTsFileProcessorSelected = false;
     long memCost = 0;
     long activeMemSize = memoryUsage.get();
     while (activeMemSize - memCost > FLUSH_THRESHOLD) {
@@ -106,10 +105,11 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
       memCost += selectedTsFileProcessor.getWorkMemTableRamCost();
       selectedTsFileProcessor.setWorkMemTableShouldFlush();
       flushTaskSubmitThreadPool.submit(selectedTsFileProcessor::submitAFlushTask);
-      if (selectedTsFileProcessor == currentTsFileProcessor) {
-        isCurrentTsFileProcessorSelected = true;
-      }
       allTsFileProcessors.poll();
     }
+  }
+
+  public void resetStorageGroupInfo(StorageGroupInfo info) {
+    reportedStorageGroupMemCostMap.put(info, info.getMemCost());
   }
 }
