@@ -65,6 +65,14 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     return success;
   }
 
+  @Override
+  public void releaseMemory(long size) {
+    super.releaseMemory(size);
+    if (memoryUsage.get() < REJECT_THRESHOLD) {
+      rejected = false;
+    }
+  }
+
   public boolean isRejected() {
     return rejected;
   }
