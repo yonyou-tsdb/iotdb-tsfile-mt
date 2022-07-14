@@ -192,6 +192,7 @@ public class LogDispatcher {
             // we may block here if there is no requests in the queue
             IndexedConsensusRequest request =
                 pendingRequest.poll(PENDING_REQUEST_TAKING_TIME_OUT_IN_SEC, TimeUnit.SECONDS);
+            getBatchStartTime = System.nanoTime();
             if (request != null) {
               bufferedRequest.add(request);
               // If write pressure is low, we simply sleep a little to reduce the number of RPC
@@ -200,7 +201,6 @@ public class LogDispatcher {
               }
             }
           }
-          StepTracker.trace("getBatch()", 10, getBatchStartTime, System.nanoTime());
           // we may block here if the synchronization pipeline is full
           StepTracker.trace("getBatch()", 10, getBatchStartTime, System.nanoTime());
 
@@ -352,6 +352,7 @@ public class LogDispatcher {
         StepTracker.trace("walEntryiterator.next()", 400, nextStartTime, System.nanoTime());
         currentIndex = data.getSearchIndex();
         iteratorIndex = currentIndex;
+        StepTracker.trace("walDataRequestSize", 400, 0, data.getRequests().size() * 1000_000L);
         for (IConsensusRequest innerRequest : data.getRequests()) {
           long newTlogBatchStartTime = System.nanoTime();
           logBatches.add(new TLogBatch(innerRequest.serializeToByteBuffer(), true));
