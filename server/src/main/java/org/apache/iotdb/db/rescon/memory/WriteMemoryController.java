@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   private static final Logger logger = LoggerFactory.getLogger(WriteMemoryController.class);
@@ -40,8 +41,9 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   private static final double FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
   private static final double REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
   private volatile boolean rejected = false;
-  private volatile long flushingMemory = 0;
+  private AtomicLong flushingMemory = new AtomicLong(0);
   private Map<StorageGroupInfo, Long> reportedStorageGroupMemCostMap = new ConcurrentHashMap<>();
+  private Map<String, AtomicLong> memoryUsageForEachSg = new ConcurrentHashMap<>();
   private ExecutorService flushTaskSubmitThreadPool =
       IoTDBThreadPoolFactory.newSingleThreadExecutor("FlushTask-Submit-Pool");
 
@@ -53,7 +55,7 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
 
   public boolean tryAllocateMemory(long size, StorageGroupInfo info, TsFileProcessor processor) {
     boolean success = super.tryAllocateMemory(size, processor);
-    if (memoryUsage.get() > REJECT_THRESHOLD) {
+    if (memoryUsage.get() > REJECT_THRESHOLD && !rejected) {
       logger.info(
           "Change system to reject status. Triggered by: logical SG ({}), mem cost delta ({}), totalSgMemCost ({}).",
           info.getDataRegion().getLogicalStorageGroupName(),
@@ -61,7 +63,16 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
           memoryUsage.get());
       rejected = true;
     }
-    reportedStorageGroupMemCostMap.put(info, info.getMemCost());
+    if (success) {
+      reportedStorageGroupMemCostMap.put(info, info.getMemCost());
+      memoryUsageForEachSg
+          .computeIfAbsent(
+              info.getDataRegion().getLogicalStorageGroupName()
+                  + "-"
+                  + info.getDataRegion().getDataRegionId(),
+              x -> new AtomicLong(0))
+          .addAndGet(size);
+    }
     return success;
   }
 
@@ -100,7 +111,7 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
       allTsFileProcessors.addAll(storageGroupInfo.getAllReportedTsp());
     }
     long memCost = 0;
-    long activeMemSize = memoryUsage.get();
+    long activeMemSize = memoryUsage.get() - flushingMemory.get();
     while (activeMemSize - memCost > FLUSH_THRESHOLD) {
       if (allTsFileProcessors.isEmpty()
           || allTsFileProcessors.peek().getWorkMemTableRamCost() == 0) {
@@ -119,5 +130,9 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
 
   public void resetStorageGroupInfo(StorageGroupInfo info) {
     reportedStorageGroupMemCostMap.put(info, info.getMemCost());
+  }
+
+  public long getMemoryUsageForSg(String sgName) {
+    return memoryUsageForEachSg.get(sgName).get();
   }
 }

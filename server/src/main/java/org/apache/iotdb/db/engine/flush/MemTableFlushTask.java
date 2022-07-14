@@ -104,6 +104,7 @@ public class MemTableFlushTask {
       estimatedTemporaryMemSize =
           memTable.memSize() / memTable.getSeriesNumber() * config.getIoTaskQueueSizeForFlushing();
       SystemInfo.getInstance().applyTemporaryMemoryForFlushing(estimatedTemporaryMemSize);
+      // TODO: ALLOCATE IN WRITE MEMORY CONTROLLER
     }
     long start = System.currentTimeMillis();
     long sortTime = 0;

@@ -794,7 +794,6 @@ public class TsFileProcessor {
     } catch (WriteProcessRejectException e) {
       storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
       tsFileProcessorInfo.releaseTSPMemCost(chunkMetadataIncrement);
-      controller.resetStorageGroupInfo(storageGroupInfo);
       throw e;
     }
     workMemTable.addTVListRamCost(memTableIncrement);
@@ -1169,7 +1168,12 @@ public class TsFileProcessor {
         }
         // report to System
         WriteMemoryController.getInstance().resetStorageGroupInfo(storageGroupInfo);
+        logger.error(
+            "Memory usage for {} is {}",
+            storageGroupName,
+            WriteMemoryController.getInstance().getMemoryUsageForSg(storageGroupName));
         WriteMemoryController.getInstance().releaseMemory(memTable.getTVListsRamCost());
+        logger.error("Release size {} for {}", memTable.getTVListsRamCost(), storageGroupName);
       }
       if (logger.isDebugEnabled()) {
         logger.debug(
