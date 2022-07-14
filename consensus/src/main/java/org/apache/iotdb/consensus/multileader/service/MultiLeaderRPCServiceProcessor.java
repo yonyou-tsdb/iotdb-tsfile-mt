@@ -20,6 +20,7 @@
 package org.apache.iotdb.consensus.multileader.service;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.consensus.ConsensusGroupId;
 import org.apache.iotdb.consensus.common.request.ByteBufferConsensusRequest;
 import org.apache.iotdb.consensus.common.request.MultiLeaderConsensusRequest;
@@ -51,6 +52,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
 
   @Override
   public void syncLog(TSyncLogReq req, AsyncMethodCallback<TSyncLogRes> resultHandler) {
+    long startTime = System.nanoTime();
     try {
       ConsensusGroupId groupId =
           ConsensusGroupId.Factory.createFromTConsensusGroupId(req.getConsensusGroupId());
@@ -70,6 +72,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
       // We use synchronized to ensure atomicity of executing multiple logs
       synchronized (impl.getStateMachine()) {
         for (TLogBatch batch : req.getBatches()) {
+          long writeOneBatch = System.nanoTime();
           statuses.add(
               impl.getStateMachine()
                   .write(
@@ -77,12 +80,15 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
                           batch.isFromWAL()
                               ? new MultiLeaderConsensusRequest(batch.data)
                               : new ByteBufferConsensusRequest(batch.data))));
+          StepTracker.trace("writeOneBatch", 400, writeOneBatch, System.nanoTime());
         }
       }
       logger.debug("Execute TSyncLogReq for {} with result {}", req.consensusGroupId, statuses);
       resultHandler.onComplete(new TSyncLogRes(statuses));
     } catch (Exception e) {
       resultHandler.onError(e);
+    } finally {
+      StepTracker.trace("SyncLogProcess", 10, startTime, System.nanoTime());
     }
   }
 
