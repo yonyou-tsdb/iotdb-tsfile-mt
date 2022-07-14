@@ -73,21 +73,21 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
       StepTracker.trace("syncLogPrepare", 10, prepareStartTime, System.nanoTime());
       // We use synchronized to ensure atomicity of executing multiple logs
       long lockWaitingStartTime = System.nanoTime();
-      synchronized (impl.getStateMachine()) {
-        StepTracker.trace("syncLogWaitingLock", 10, lockWaitingStartTime, System.nanoTime());
-        StepTracker.trace("req.getBatches().size()", 10, 0, req.getBatches().size() * 1000_000L);
-        for (TLogBatch batch : req.getBatches()) {
-          long writeOneBatch = System.nanoTime();
-          statuses.add(
-              impl.getStateMachine()
-                  .write(
-                      impl.buildIndexedConsensusRequestForRemoteRequest(
-                          batch.isFromWAL()
-                              ? new MultiLeaderConsensusRequest(batch.data)
-                              : new ByteBufferConsensusRequest(batch.data))));
-          StepTracker.trace("writeOneBatch", 400, writeOneBatch, System.nanoTime());
-        }
+      //      synchronized (impl.getStateMachine()) {
+      StepTracker.trace("syncLogWaitingLock", 10, lockWaitingStartTime, System.nanoTime());
+      StepTracker.trace("req.getBatches().size()", 10, 0, req.getBatches().size() * 1000_000L);
+      for (TLogBatch batch : req.getBatches()) {
+        long writeOneBatch = System.nanoTime();
+        statuses.add(
+            impl.getStateMachine()
+                .write(
+                    impl.buildIndexedConsensusRequestForRemoteRequest(
+                        batch.isFromWAL()
+                            ? new MultiLeaderConsensusRequest(batch.data)
+                            : new ByteBufferConsensusRequest(batch.data))));
+        StepTracker.trace("writeOneBatch", 400, writeOneBatch, System.nanoTime());
       }
+      //      }
       logger.debug("Execute TSyncLogReq for {} with result {}", req.consensusGroupId, statuses);
       resultHandler.onComplete(new TSyncLogRes(statuses));
     } catch (Exception e) {
