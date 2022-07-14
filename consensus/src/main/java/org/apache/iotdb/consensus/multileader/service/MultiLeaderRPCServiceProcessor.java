@@ -54,6 +54,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
   public void syncLog(TSyncLogReq req, AsyncMethodCallback<TSyncLogRes> resultHandler) {
     long startTime = System.nanoTime();
     try {
+      long prepareStartTime = System.nanoTime();
       ConsensusGroupId groupId =
           ConsensusGroupId.Factory.createFromTConsensusGroupId(req.getConsensusGroupId());
       MultiLeaderServerImpl impl = consensus.getImpl(groupId);
@@ -69,8 +70,11 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
         return;
       }
       List<TSStatus> statuses = new ArrayList<>();
+      StepTracker.trace("syncLogPrepare", 10, prepareStartTime, System.nanoTime());
       // We use synchronized to ensure atomicity of executing multiple logs
+      long lockWaitingStartTime = System.nanoTime();
       synchronized (impl.getStateMachine()) {
+        StepTracker.trace("syncLogWaitingLock", 10, lockWaitingStartTime, System.nanoTime());
         StepTracker.trace("req.getBatches().size()", 10, 0, req.getBatches().size() * 1000_000L);
         for (TLogBatch batch : req.getBatches()) {
           long writeOneBatch = System.nanoTime();
