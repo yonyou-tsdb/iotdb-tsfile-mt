@@ -70,7 +70,7 @@ public class MemoryController<T> {
       }
 
       if (memoryUsage.compareAndSet(current, newUsage)) {
-        checkTrigger(current, newUsage, triggerParam);
+        checkTrigger(newUsage, triggerParam);
         return true;
       }
     }
@@ -137,10 +137,9 @@ public class MemoryController<T> {
     }
   }
 
-  private void checkTrigger(long prevUsage, long newUsage, T triggerParam) {
-    if (newUsage >= triggerThreshold && prevUsage < triggerThreshold && trigger != null) {
+  private void checkTrigger(long usage, T triggerParam) {
+    if (usage >= triggerThreshold && trigger != null) {
       if (triggerRunning.compareAndSet(false, true)) {
-        log.info("Start to execute memory controller trigger");
         try {
           trigger.run(triggerParam);
         } finally {

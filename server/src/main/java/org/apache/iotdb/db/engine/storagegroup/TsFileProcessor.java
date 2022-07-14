@@ -809,7 +809,6 @@ public class TsFileProcessor {
     storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
     tsFileProcessorInfo.releaseTSPMemCost(chunkMetadataIncrement);
     WriteMemoryController.getInstance().releaseMemory(memTableIncrement);
-    WriteMemoryController.getInstance().resetStorageGroupInfo(storageGroupInfo);
     workMemTable.releaseTVListRamCost(memTableIncrement);
     workMemTable.releaseTextDataSize(textDataIncrement);
   }
@@ -1167,12 +1166,9 @@ public class TsFileProcessor {
               flushingMemTables.size());
         }
         // report to System
-        WriteMemoryController.getInstance().resetStorageGroupInfo(storageGroupInfo);
-        logger.error(
-            "Memory usage for {} is {}",
-            storageGroupName,
-            WriteMemoryController.getInstance().getMemoryUsageForSg(storageGroupName));
-        WriteMemoryController.getInstance().releaseMemory(memTable.getTVListsRamCost());
+        WriteMemoryController.getInstance()
+            .releaseFlushingMemory(
+                memTable.getTVListsRamCost(), storageGroupName, memTable.getMemTableId());
         logger.error("Release size {} for {}", memTable.getTVListsRamCost(), storageGroupName);
       }
       if (logger.isDebugEnabled()) {

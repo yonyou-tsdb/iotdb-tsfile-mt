@@ -19,7 +19,6 @@
 package org.apache.iotdb.db.engine.storagegroup;
 
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
-import org.apache.iotdb.db.rescon.memory.WriteMemoryController;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -44,6 +43,8 @@ public class StorageGroupInfo {
 
   /** A set of all unclosed TsFileProcessors in this SG */
   private List<TsFileProcessor> reportedTsps = new CopyOnWriteArrayList<>();
+
+  private volatile boolean recorded = false;
 
   public StorageGroupInfo(DataRegion dataRegion) {
     this.dataRegion = dataRegion;
@@ -87,6 +88,13 @@ public class StorageGroupInfo {
    */
   public void closeTsFileProcessorAndReportToSystem(TsFileProcessor tsFileProcessor) {
     reportedTsps.remove(tsFileProcessor);
-    WriteMemoryController.getInstance().resetStorageGroupInfo(this);
+  }
+
+  public boolean isRecorded() {
+    return recorded;
+  }
+
+  public void setRecorded(boolean recorded) {
+    this.recorded = recorded;
   }
 }
