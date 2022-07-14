@@ -200,9 +200,15 @@ public class LogDispatcher {
               }
             }
           }
-          // we may block here if the synchronization pipeline is full
-          syncStatus.addNextBatch(batch);
           StepTracker.trace("getBatch()", 10, getBatchStartTime, System.nanoTime());
+          // we may block here if the synchronization pipeline is full
+          StepTracker.trace("getBatch()", 10, getBatchStartTime, System.nanoTime());
+
+          long addNextBatchStartTime = System.nanoTime();
+          syncStatus.addNextBatch(batch);
+          StepTracker.trace(
+              "syncStatus.addNextBatch()", 10, addNextBatchStartTime, System.nanoTime());
+
           // sends batch asynchronously and migrates the retry logic into the callback handler
           sendBatchAsync(batch, new DispatchLogHandler(this, batch));
         }
