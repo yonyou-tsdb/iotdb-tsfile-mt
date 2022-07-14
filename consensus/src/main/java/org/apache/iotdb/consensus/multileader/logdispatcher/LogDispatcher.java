@@ -192,7 +192,6 @@ public class LogDispatcher {
             // we may block here if there is no requests in the queue
             IndexedConsensusRequest request =
                 pendingRequest.poll(PENDING_REQUEST_TAKING_TIME_OUT_IN_SEC, TimeUnit.SECONDS);
-            getBatchStartTime = System.nanoTime();
             if (request != null) {
               bufferedRequest.add(request);
               // If write pressure is low, we simply sleep a little to reduce the number of RPC
