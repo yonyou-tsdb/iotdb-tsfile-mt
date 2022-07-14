@@ -71,6 +71,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
       List<TSStatus> statuses = new ArrayList<>();
       // We use synchronized to ensure atomicity of executing multiple logs
       synchronized (impl.getStateMachine()) {
+        StepTracker.trace("req.getBatches().size()", 10, 0, req.getBatches().size() * 1000_000L);
         for (TLogBatch batch : req.getBatches()) {
           long writeOneBatch = System.nanoTime();
           statuses.add(
