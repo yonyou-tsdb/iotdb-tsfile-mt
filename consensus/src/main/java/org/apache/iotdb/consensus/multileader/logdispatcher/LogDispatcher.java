@@ -20,6 +20,7 @@
 package org.apache.iotdb.consensus.multileader.logdispatcher;
 
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.client.IClientManager;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.consensus.common.Peer;
@@ -186,6 +187,7 @@ public class LogDispatcher {
       try {
         PendingBatch batch;
         while (!Thread.interrupted() && !stopped) {
+          long getBatchStartTime = System.nanoTime();
           while ((batch = getBatch()).isEmpty()) {
             // we may block here if there is no requests in the queue
             IndexedConsensusRequest request =
@@ -200,6 +202,7 @@ public class LogDispatcher {
           }
           // we may block here if the synchronization pipeline is full
           syncStatus.addNextBatch(batch);
+          StepTracker.trace("getBatch()", 10, getBatchStartTime, System.nanoTime());
           // sends batch asynchronously and migrates the retry logic into the callback handler
           sendBatchAsync(batch, new DispatchLogHandler(this, batch));
         }
@@ -330,16 +333,23 @@ public class LogDispatcher {
           && logBatches.size() < config.getReplication().getMaxRequestPerBatch()) {
         logger.debug("construct from WAL for one Entry, index : {}", currentIndex);
         try {
+          long waitForNextStartTime = System.nanoTime();
           walEntryiterator.waitForNextReady();
+          StepTracker.trace(
+              "walEntryiterator.waitForNextReady()", 400, waitForNextStartTime, System.nanoTime());
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
           logger.warn("wait for next WAL entry is interrupted");
         }
+        long nextStartTime = System.nanoTime();
         IndexedConsensusRequest data = walEntryiterator.next();
+        StepTracker.trace("walEntryiterator.next()", 400, nextStartTime, System.nanoTime());
         currentIndex = data.getSearchIndex();
         iteratorIndex = currentIndex;
         for (IConsensusRequest innerRequest : data.getRequests()) {
+          long newTlogBatchStartTime = System.nanoTime();
           logBatches.add(new TLogBatch(innerRequest.serializeToByteBuffer(), true));
+          StepTracker.trace("newTLogBatch", 400, newTlogBatchStartTime, System.nanoTime());
         }
         if (currentIndex == maxIndex - 1) {
           break;
