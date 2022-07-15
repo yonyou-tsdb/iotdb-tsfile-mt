@@ -1169,7 +1169,6 @@ public class TsFileProcessor {
         WriteMemoryController.getInstance()
             .releaseFlushingMemory(
                 memTable.getTVListsRamCost(), storageGroupName, memTable.getMemTableId());
-        logger.error("Release size {} for {}", memTable.getTVListsRamCost(), storageGroupName);
       }
       if (logger.isDebugEnabled()) {
         logger.debug(

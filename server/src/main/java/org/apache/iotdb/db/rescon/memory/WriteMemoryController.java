@@ -39,12 +39,13 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   private static final IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
   private static final long memorySizeForWrite = config.getAllocateMemoryForWrite();
   private static final double FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
+  private static final double END_FLUSH_THRESHOLD = 0.7 * FLUSH_THRESHOLD;
   private static final double REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
   private volatile boolean rejected = false;
   private AtomicLong flushingMemory = new AtomicLong(0);
   private Set<StorageGroupInfo> infoSet = new CopyOnWriteArraySet<>();
   private ExecutorService flushTaskSubmitThreadPool =
-      IoTDBThreadPoolFactory.newSingleThreadExecutor("FlushTask-Submit-Pool");
+      IoTDBThreadPoolFactory.newFixedThreadPool(2, "FlushTask-Submit-Pool");
 
   public WriteMemoryController(long limitSize) {
     super(limitSize);
@@ -122,7 +123,8 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
       if (selectedTsFileProcessor == null) {
         break;
       }
-      if (selectedTsFileProcessor.shouldFlush()) {
+      if (selectedTsFileProcessor.getWorkMemTable() == null
+          || selectedTsFileProcessor.getWorkMemTable().shouldFlush()) {
         continue;
       }
       memCost += selectedTsFileProcessor.getWorkMemTableRamCost();
