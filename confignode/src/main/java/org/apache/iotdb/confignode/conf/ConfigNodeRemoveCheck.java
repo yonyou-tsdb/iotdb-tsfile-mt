@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Properties;
 
 public class ConfigNodeRemoveCheck {
-  private static final Logger LOGGER = LoggerFactory.getLogger(ConfigNodeStartupCheck.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(ConfigNodeRemoveCheck.class);
 
   private static final ConfigNodeConfig conf = ConfigNodeDescriptor.getInstance().getConf();
 
