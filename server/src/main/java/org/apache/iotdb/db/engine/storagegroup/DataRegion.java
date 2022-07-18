@@ -897,6 +897,9 @@ public class DataRegion {
     if (!isAlive(insertRowNode.getTime())) {
       throw new OutOfTTLException(insertRowNode.getTime(), (System.currentTimeMillis() - dataTTL));
     }
+    if (enableMemControl) {
+      StorageEngineV2.blockInsertionIfReject(null);
+    }
     writeLock("InsertRow");
     try {
       // init map
@@ -1055,6 +1058,9 @@ public class DataRegion {
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
   public void insertTablet(InsertTabletNode insertTabletNode)
       throws TriggerExecutionException, BatchProcessException, WriteProcessException {
+    if (enableMemControl) {
+      StorageEngineV2.blockInsertionIfReject(null);
+    }
     writeLock("insertTablet");
     long insertTabletStartTime = System.nanoTime();
     try {
@@ -1758,9 +1764,6 @@ public class DataRegion {
       return;
     }
 
-    // prevent new merges and queries from choosing this file
-    resource.setStatus(TsFileResourceStatus.DELETED);
-
     // ensure that the file is not used by any queries
     if (resource.tryWriteLock()) {
       try {
@@ -2127,14 +2130,12 @@ public class DataRegion {
           deletion,
           devicePaths,
           updatedModFiles,
-          planIndex,
           timePartitionFilter);
       deleteDataInFiles(
           tsFileManager.getTsFileList(false),
           deletion,
           devicePaths,
           updatedModFiles,
-          planIndex,
           timePartitionFilter);
 
     } catch (Exception e) {
@@ -2209,14 +2210,12 @@ public class DataRegion {
           deletion,
           devicePaths,
           updatedModFiles,
-          planIndex,
           timePartitionFilter);
       deleteDataInFiles(
           tsFileManager.getTsFileList(false),
           deletion,
           devicePaths,
           updatedModFiles,
-          planIndex,
           timePartitionFilter);
 
     } catch (Exception e) {
@@ -2273,15 +2272,20 @@ public class DataRegion {
             logicalStorageGroupName, tsFileResource.getTimePartition())) {
       return true;
     }
+    if (!tsFileResource.isClosed()) {
+      // tsfile is not closed
+      return false;
+    }
     for (PartialPath device : devicePaths) {
       String deviceId = device.getFullPath();
-      long endTime = tsFileResource.getEndTime(deviceId);
-      if (endTime == Long.MIN_VALUE) {
-        return false;
+      if (!tsFileResource.mayContainsDevice(deviceId)) {
+        // resource does not contain this device
+        continue;
       }
 
-      if (tsFileResource.isDeviceIdExist(deviceId)
-          && (deleteEnd >= tsFileResource.getStartTime(deviceId) && deleteStart <= endTime)) {
+      if (deleteEnd >= tsFileResource.getStartTime(deviceId)
+          && deleteStart <= tsFileResource.getEndTime(deviceId)) {
+        // time range of device has overlap with the deletion
         return false;
       }
     }
@@ -2293,7 +2297,6 @@ public class DataRegion {
       Deletion deletion,
       Set<PartialPath> devicePaths,
       List<ModificationFile> updatedModFiles,
-      long planIndex,
       TimePartitionFilter timePartitionFilter)
       throws IOException {
     for (TsFileResource tsFileResource : tsFileResourceList) {
@@ -2317,7 +2320,7 @@ public class DataRegion {
         // remember to close mod file
         tsFileResource.getCompactionModFile().close();
         tsFileResource.getModFile().close();
-      } else {
+      } else if (tsFileResource.isClosed()) {
         deletion.setFileOffset(tsFileResource.getTsFileSize());
         // write deletion into modification file
         tsFileResource.getModFile().write(deletion);
@@ -2330,8 +2333,6 @@ public class DataRegion {
           deletion.getStartTime(),
           deletion.getEndTime(),
           tsFileResource.getModFile().getFilePath());
-
-      tsFileResource.updatePlanIndexes(planIndex);
 
       // delete data in memory of unsealed file
       if (!tsFileResource.isClosed()) {
@@ -3438,6 +3439,9 @@ public class DataRegion {
    */
   public void insert(InsertRowsOfOneDeviceNode insertRowsOfOneDeviceNode)
       throws WriteProcessException, TriggerExecutionException, BatchProcessException {
+    if (enableMemControl) {
+      StorageEngineV2.blockInsertionIfReject(null);
+    }
     writeLock("InsertRowsOfOneDevice");
     try {
       boolean isSequence = false;
