@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.db.consensus.statemachine;
 
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.consensus.IStateMachine;
 import org.apache.iotdb.consensus.common.request.ByteBufferConsensusRequest;
 import org.apache.iotdb.consensus.common.request.IConsensusRequest;
@@ -51,9 +52,13 @@ public abstract class BaseStateMachine implements IStateMachine, IStateMachine.E
   protected PlanNode getPlanNode(IConsensusRequest request) {
     PlanNode node;
     if (request instanceof ByteBufferConsensusRequest) {
+      long startTime = System.nanoTime();
       node = PlanNodeType.deserialize(request.serializeToByteBuffer());
+      StepTracker.trace("FromPlanNodeDeserialize", 400, startTime, System.nanoTime());
     } else if (request instanceof MultiLeaderConsensusRequest) {
+      long startTime = System.nanoTime();
       node = WALEntry.deserializeInsertNode(request.serializeToByteBuffer());
+      StepTracker.trace("FromWALDeserialize", 400, startTime, System.nanoTime());
     } else if (request instanceof PlanNode) {
       node = (PlanNode) request;
     } else {

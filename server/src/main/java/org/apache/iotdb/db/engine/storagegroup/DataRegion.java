@@ -1055,8 +1055,8 @@ public class DataRegion {
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
   public void insertTablet(InsertTabletNode insertTabletNode)
       throws TriggerExecutionException, BatchProcessException, WriteProcessException {
-    long insertTabletStartTime = System.nanoTime();
     writeLock("insertTablet");
+    long insertTabletStartTime = System.nanoTime();
     try {
       TSStatus[] results = new TSStatus[insertTabletNode.getRowCount()];
       Arrays.fill(results, RpcUtils.SUCCESS_STATUS);
