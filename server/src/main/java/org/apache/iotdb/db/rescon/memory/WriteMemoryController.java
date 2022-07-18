@@ -37,15 +37,14 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   private static final Logger logger = LoggerFactory.getLogger(WriteMemoryController.class);
   private static volatile WriteMemoryController INSTANCE;
   private static final IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
-  private static final long memorySizeForWrite = config.getAllocateMemoryForWrite();
-  private static final double FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
-  private static final double END_FLUSH_THRESHOLD = 0.7 * FLUSH_THRESHOLD;
-  private static final double REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
+  private static long memorySizeForWrite = config.getAllocateMemoryForWrite();
+  private static double FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
+  private static double REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
   private volatile boolean rejected = false;
   private AtomicLong flushingMemory = new AtomicLong(0);
   private Set<StorageGroupInfo> infoSet = new CopyOnWriteArraySet<>();
   private ExecutorService flushTaskSubmitThreadPool =
-      IoTDBThreadPoolFactory.newFixedThreadPool(2, "FlushTask-Submit-Pool");
+      IoTDBThreadPoolFactory.newFixedThreadPool(1, "FlushTask-Submit-Pool");
 
   public WriteMemoryController(long limitSize) {
     super(limitSize);
@@ -95,6 +94,18 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
       }
     }
     return INSTANCE;
+  }
+
+  public void applyExternalMemoryForFlushing(long size) {
+    memorySizeForWrite -= size;
+    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
+    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
+  }
+
+  public void releaseExternalMemoryForFlushing(long size) {
+    memorySizeForWrite -= size;
+    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
+    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
   }
 
   protected void chooseMemtableToFlush(TsFileProcessor currentTsFileProcessor) {

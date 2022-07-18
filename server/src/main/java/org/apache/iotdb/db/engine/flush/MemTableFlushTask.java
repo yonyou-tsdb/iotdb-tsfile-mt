@@ -27,6 +27,7 @@ import org.apache.iotdb.db.engine.memtable.IWritableMemChunkGroup;
 import org.apache.iotdb.db.exception.runtime.FlushRunTimeException;
 import org.apache.iotdb.db.metadata.idtable.entry.IDeviceID;
 import org.apache.iotdb.db.rescon.SystemInfo;
+import org.apache.iotdb.db.rescon.memory.WriteMemoryController;
 import org.apache.iotdb.db.service.metrics.MetricsService;
 import org.apache.iotdb.db.service.metrics.enums.Metric;
 import org.apache.iotdb.db.service.metrics.enums.Tag;
@@ -103,8 +104,7 @@ public class MemTableFlushTask {
     if (config.isEnableMemControl() && SystemInfo.getInstance().isEncodingFasterThanIo()) {
       estimatedTemporaryMemSize =
           memTable.memSize() / memTable.getSeriesNumber() * config.getIoTaskQueueSizeForFlushing();
-      SystemInfo.getInstance().applyTemporaryMemoryForFlushing(estimatedTemporaryMemSize);
-      // TODO: ALLOCATE IN WRITE MEMORY CONTROLLER
+      WriteMemoryController.getInstance().applyExternalMemoryForFlushing(estimatedTemporaryMemSize);
     }
     long start = System.currentTimeMillis();
     long sortTime = 0;
@@ -152,7 +152,8 @@ public class MemTableFlushTask {
 
     if (config.isEnableMemControl()) {
       if (estimatedTemporaryMemSize != 0) {
-        SystemInfo.getInstance().releaseTemporaryMemoryForFlushing(estimatedTemporaryMemSize);
+        WriteMemoryController.getInstance()
+            .releaseExternalMemoryForFlushing(estimatedTemporaryMemSize);
       }
       SystemInfo.getInstance().setEncodingFasterThanIo(ioTime >= memSerializeTime);
     }

@@ -77,7 +77,7 @@ public class SystemInfo {
           totalStorageGroupMemCost);
     }
     reportedStorageGroupMemCostMap.put(storageGroupInfo, storageGroupInfo.getMemCost());
-    storageGroupInfo.setLastReportedSize(storageGroupInfo.getMemCost());
+    storageGroupInfo.setLastAllocateSize(storageGroupInfo.getMemCost());
     if (totalStorageGroupMemCost < FLUSH_THERSHOLD) {
       return true;
     } else if (totalStorageGroupMemCost >= FLUSH_THERSHOLD
@@ -123,7 +123,7 @@ public class SystemInfo {
     if (reportedStorageGroupMemCostMap.containsKey(storageGroupInfo)) {
       delta = reportedStorageGroupMemCostMap.get(storageGroupInfo) - storageGroupInfo.getMemCost();
       this.totalStorageGroupMemCost -= delta;
-      storageGroupInfo.setLastReportedSize(storageGroupInfo.getMemCost());
+      storageGroupInfo.setLastAllocateSize(storageGroupInfo.getMemCost());
       reportedStorageGroupMemCostMap.put(storageGroupInfo, storageGroupInfo.getMemCost());
     }
 

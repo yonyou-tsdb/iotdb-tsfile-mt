@@ -39,7 +39,7 @@ public class StorageGroupInfo {
   private long storageGroupSizeReportThreshold =
       IoTDBDescriptor.getInstance().getConfig().getStorageGroupSizeReportThreshold();
 
-  private AtomicLong lastReportedSize = new AtomicLong();
+  private AtomicLong lastAllocateSize = new AtomicLong();
 
   /** A set of all unclosed TsFileProcessors in this SG */
   private List<TsFileProcessor> reportedTsps = new CopyOnWriteArrayList<>();
@@ -76,8 +76,12 @@ public class StorageGroupInfo {
     return reportedTsps;
   }
 
-  public void setLastReportedSize(long size) {
-    lastReportedSize.set(size);
+  public void setLastAllocateSize(long size) {
+    lastAllocateSize.set(size);
+  }
+
+  public boolean needToAllocate(long newSize) {
+    return true;
   }
 
   /**
