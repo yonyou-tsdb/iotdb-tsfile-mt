@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.consensus.statemachine;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.consensus.DataRegionId;
 import org.apache.iotdb.consensus.common.DataSet;
 import org.apache.iotdb.consensus.common.request.IConsensusRequest;
@@ -100,6 +101,7 @@ public class DataRegionStateMachine extends BaseStateMachine {
   public TSStatus write(IConsensusRequest request) {
     TSStatus status;
     PlanNode planNode;
+    long writeStartTime = System.nanoTime();
     try {
       if (request instanceof IndexedConsensusRequest) {
         status = new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
@@ -125,6 +127,8 @@ public class DataRegionStateMachine extends BaseStateMachine {
     } catch (IllegalArgumentException e) {
       logger.error(e.getMessage(), e);
       return new TSStatus(TSStatusCode.INTERNAL_SERVER_ERROR.getStatusCode());
+    } finally {
+      StepTracker.trace("StateMachineWriteOne", 400, writeStartTime, System.nanoTime());
     }
   }
 

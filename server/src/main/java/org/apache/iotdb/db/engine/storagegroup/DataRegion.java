@@ -19,6 +19,7 @@
 package org.apache.iotdb.db.engine.storagegroup;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.commons.concurrent.ThreadName;
 import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
@@ -1054,7 +1055,7 @@ public class DataRegion {
   @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
   public void insertTablet(InsertTabletNode insertTabletNode)
       throws TriggerExecutionException, BatchProcessException, WriteProcessException {
-
+    long insertTabletStartTime = System.nanoTime();
     writeLock("insertTablet");
     try {
       TSStatus[] results = new TSStatus[insertTabletNode.getRowCount()];
@@ -1139,6 +1140,7 @@ public class DataRegion {
       //      TODO: trigger // fire trigger after insertion
       //      TriggerEngine.fire(TriggerEvent.AFTER_INSERT, insertTabletPlan, firePosition);
     } finally {
+      StepTracker.trace("DataRegionInsertTablet", 400, insertTabletStartTime, System.nanoTime());
       writeUnlock();
     }
   }
