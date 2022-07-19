@@ -40,11 +40,13 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   private static long memorySizeForWrite = config.getAllocateMemoryForWrite();
   private static double FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
   private static double REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
+  private static double END_FLUSH_THRESHOLD = 0.5 * FLUSH_THRESHOLD;
   private volatile boolean rejected = false;
   private AtomicLong flushingMemory = new AtomicLong(0);
   private Set<StorageGroupInfo> infoSet = new CopyOnWriteArraySet<>();
   private ExecutorService flushTaskSubmitThreadPool =
       IoTDBThreadPoolFactory.newFixedThreadPool(1, "FlushTask-Submit-Pool");
+  public static final long FRAME_SIZE = 2L * 1024L * 1024L;
 
   public WriteMemoryController(long limitSize) {
     super(limitSize);
@@ -69,12 +71,33 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     return success;
   }
 
-  public void releaseFlushingMemory(long size, String storageGroup, long memTableId) {
-    this.flushingMemory.addAndGet(-size);
-    this.releaseMemory(size, storageGroup, memTableId);
+  public boolean allocateFrame(StorageGroupInfo info, TsFileProcessor processor, long memTableId) {
+    boolean success = this.tryAllocateMemory(FRAME_SIZE, info, processor);
+    if (success) {
+      logger.error(
+          "Allocate memory frame for {}-{}#{}, current usage is {} MB, remaining is {} MB, flushing memory is {} MB",
+          info.getDataRegion().getLogicalStorageGroupName(),
+          info.getDataRegion().getDataRegionId(),
+          memTableId,
+          ((double) memoryUsage.get()) / 1024.0d / 1024.0d,
+          ((double) (memorySizeForWrite - memoryUsage.get())) / 1024.0d / 1024.0d,
+          ((double) flushingMemory.get()) / 1024.0d / 1024.0d);
+    }
+    return success;
   }
 
-  public void releaseMemory(long size, String storageGroup, long memTableId) {
+  public void releaseFlushingMemory(StorageGroupInfo info, long size) {
+    this.flushingMemory.addAndGet(-size);
+    this.releaseMemory(size);
+    logger.error(
+        "Release {} size of {}-{}, remaining size is {}",
+        ((double) size) / 1024.0d / 1024.0d,
+        info.getDataRegion().getLogicalStorageGroupName(),
+        info.getDataRegion().getDataRegionId(),
+        ((double) (memorySizeForWrite - memoryUsage.get())) / 1024.0d / 1024.0d);
+  }
+
+  public void releaseMemory(long size) {
     super.releaseMemory(size);
     if (rejected && memoryUsage.get() < REJECT_THRESHOLD) {
       rejected = false;
@@ -97,15 +120,15 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   }
 
   public void applyExternalMemoryForFlushing(long size) {
-    memorySizeForWrite -= size;
-    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
-    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
+    //    memorySizeForWrite -= size;
+    //    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
+    //    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
   }
 
   public void releaseExternalMemoryForFlushing(long size) {
-    memorySizeForWrite -= size;
-    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
-    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
+    //    memorySizeForWrite += size;
+    //    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
+    //    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
   }
 
   protected void chooseMemtableToFlush(TsFileProcessor currentTsFileProcessor) {
@@ -114,20 +137,19 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
       return;
     }
     long memCost = 0;
-    long activeMemSize = memoryUsage.get() - flushingMemory.get();
-    if (activeMemSize - memCost < FLUSH_THRESHOLD) {
-      return;
-    }
     PriorityQueue<TsFileProcessor> allTsFileProcessors =
         new PriorityQueue<>(
-            (o1, o2) -> Long.compare(o2.getWorkMemTableRamCost(), o1.getWorkMemTableRamCost()));
+            (o1, o2) ->
+                Long.compare(o2.getWorkMemTableAllocateSize(), o1.getWorkMemTableAllocateSize()));
     for (StorageGroupInfo storageGroupInfo : infoSet) {
       allTsFileProcessors.addAll(storageGroupInfo.getAllReportedTsp());
     }
     long selectedCount = 0;
-    while (activeMemSize - memCost > FLUSH_THRESHOLD) {
+    long activeMemory = memoryUsage.get() - flushingMemory.get();
+    while (activeMemory - memCost > END_FLUSH_THRESHOLD) {
       if (allTsFileProcessors.isEmpty()
           || allTsFileProcessors.peek().getWorkMemTableRamCost() == 0) {
+        logger.error("No memtable to flush");
         return;
       }
       TsFileProcessor selectedTsFileProcessor = allTsFileProcessors.peek();
@@ -138,17 +160,18 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
           || selectedTsFileProcessor.getWorkMemTable().shouldFlush()) {
         continue;
       }
-      memCost += selectedTsFileProcessor.getWorkMemTableRamCost();
+      long memUsageForThisMemTable = selectedTsFileProcessor.getWorkMemTableAllocateSize();
+      memCost += memUsageForThisMemTable;
       selectedTsFileProcessor.setWorkMemTableShouldFlush();
-      flushingMemory.addAndGet(selectedTsFileProcessor.getWorkMemTableRamCost());
+      flushingMemory.addAndGet(memUsageForThisMemTable);
       flushTaskSubmitThreadPool.submit(selectedTsFileProcessor::submitAFlushTask);
       selectedCount++;
       allTsFileProcessors.poll();
     }
     logger.info(
-        "Select {} memtable to flush, flushing memory is {}, remaining memory is {}",
+        "Select {} memtable to flush, flushing memory is {} MB, remaining memory is {} MB",
         selectedCount,
-        flushingMemory.get(),
-        memoryUsage.get() - flushingMemory.get());
+        ((double) flushingMemory.get()) / 1024.0d / 1024.0d,
+        ((double) (memoryUsage.get() - flushingMemory.get())) / 1024.0d / 1024.0d);
   }
 }

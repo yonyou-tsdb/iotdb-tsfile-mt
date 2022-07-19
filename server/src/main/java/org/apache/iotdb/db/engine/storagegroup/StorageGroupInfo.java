@@ -19,6 +19,7 @@
 package org.apache.iotdb.db.engine.storagegroup;
 
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
+import org.apache.iotdb.db.rescon.memory.WriteMemoryController;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -80,8 +81,17 @@ public class StorageGroupInfo {
     lastAllocateSize.set(size);
   }
 
-  public boolean needToAllocate(long newSize) {
-    return true;
+  public void releaseAllocateMemorySize(long size) {
+    lastAllocateSize.addAndGet(size);
+    WriteMemoryController.getInstance().releaseFlushingMemory(this, size);
+  }
+
+  public void addAllocateSize(long size) {
+    lastAllocateSize.addAndGet(size);
+  }
+
+  public boolean needToAllocate() {
+    return memoryCost.get() > lastAllocateSize.get();
   }
 
   /**

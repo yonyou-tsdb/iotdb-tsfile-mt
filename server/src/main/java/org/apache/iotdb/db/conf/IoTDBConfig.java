@@ -138,7 +138,7 @@ public class IoTDBConfig {
   private double timeIndexMemoryProportion = 0.2;
 
   /** Flush proportion for system */
-  private double flushProportion = 0.4;
+  private double flushProportion = 0.3;
 
   /** Reject proportion for system */
   private double rejectProportion = 0.8;

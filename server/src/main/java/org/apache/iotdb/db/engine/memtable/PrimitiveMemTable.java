@@ -23,8 +23,10 @@ import org.apache.iotdb.db.metadata.idtable.entry.IDeviceID;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class PrimitiveMemTable extends AbstractMemTable {
+  private final AtomicLong allocatedMemSize = new AtomicLong(0L);
 
   public PrimitiveMemTable() {}
 
@@ -51,5 +53,20 @@ public class PrimitiveMemTable extends AbstractMemTable {
   @Override
   public String toString() {
     return "PrimitiveMemTable{planIndex=[" + getMinPlanIndex() + "," + getMaxPlanIndex() + "]}";
+  }
+
+  @Override
+  public void addAllocatedMemSize(long size) {
+    allocatedMemSize.addAndGet(size);
+  }
+
+  @Override
+  public long getAllocatedMemSize() {
+    return allocatedMemSize.get();
+  }
+
+  @Override
+  public boolean needToAllocate(long newSize) {
+    return this.allocatedMemSize.get() < this.memSize() + newSize;
   }
 }

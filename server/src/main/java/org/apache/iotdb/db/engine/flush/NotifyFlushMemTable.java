@@ -36,4 +36,17 @@ public class NotifyFlushMemTable extends AbstractMemTable {
   public boolean isSignalMemTable() {
     return true;
   }
+
+  @Override
+  public void addAllocatedMemSize(long size) {}
+
+  @Override
+  public long getAllocatedMemSize() {
+    return 0;
+  }
+
+  @Override
+  public boolean needToAllocate(long newSize) {
+    return false;
+  }
 }

@@ -785,11 +785,17 @@ public class TsFileProcessor {
     storageGroupInfo.addStorageGroupMemCost(memTableIncrement);
     tsFileProcessorInfo.addTSPMemCost(chunkMetadataIncrement);
     WriteMemoryController controller = WriteMemoryController.getInstance();
-    boolean allocateMemory = false;
+    boolean allocateSuccess = false;
     try {
-      allocateMemory = controller.tryAllocateMemory(memTableIncrement, storageGroupInfo, this);
-      if (!allocateMemory) {
-        StorageEngine.blockInsertionIfReject(this);
+      while (workMemTable.needToAllocate(memTableIncrement)) {
+        allocateSuccess =
+            controller.allocateFrame(storageGroupInfo, this, workMemTable.getMemTableId());
+        if (!allocateSuccess) {
+          StorageEngine.blockInsertionIfReject(this);
+        } else {
+          storageGroupInfo.addAllocateSize(WriteMemoryController.FRAME_SIZE);
+          workMemTable.addAllocatedMemSize(WriteMemoryController.FRAME_SIZE);
+        }
       }
     } catch (WriteProcessRejectException e) {
       storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
@@ -808,7 +814,6 @@ public class TsFileProcessor {
     memTableIncrement += textDataIncrement;
     storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
     tsFileProcessorInfo.releaseTSPMemCost(chunkMetadataIncrement);
-    WriteMemoryController.getInstance().releaseMemory(memTableIncrement);
     workMemTable.releaseTVListRamCost(memTableIncrement);
     workMemTable.releaseTextDataSize(textDataIncrement);
   }
@@ -1166,9 +1171,7 @@ public class TsFileProcessor {
               flushingMemTables.size());
         }
         // report to System
-        WriteMemoryController.getInstance()
-            .releaseFlushingMemory(
-                memTable.getTVListsRamCost(), storageGroupName, memTable.getMemTableId());
+        storageGroupInfo.releaseAllocateMemorySize(memTable.getAllocatedMemSize());
       }
       if (logger.isDebugEnabled()) {
         logger.debug(
@@ -1627,5 +1630,9 @@ public class TsFileProcessor {
   @TestOnly
   public IMemTable getWorkMemTable() {
     return workMemTable;
+  }
+
+  public long getWorkMemTableAllocateSize() {
+    return workMemTable == null ? 0 : workMemTable.getAllocatedMemSize();
   }
 }

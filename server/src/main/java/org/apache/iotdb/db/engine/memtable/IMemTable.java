@@ -188,4 +188,10 @@ public interface IMemTable extends WALEntryValue {
   FlushStatus getFlushStatus();
 
   void setFlushStatus(FlushStatus flushStatus);
+
+  void addAllocatedMemSize(long size);
+
+  long getAllocatedMemSize();
+
+  boolean needToAllocate(long size);
 }
