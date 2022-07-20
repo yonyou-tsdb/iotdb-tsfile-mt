@@ -112,7 +112,6 @@ public class SyncConfigNodeClientPool {
     registerResp.setConfigNodeList(configNodeLocation);
     registerResp.setStatus(StatusUtils.OK);
     client.addConsensusGroup(registerResp);
-    return;
   }
 
   /**
