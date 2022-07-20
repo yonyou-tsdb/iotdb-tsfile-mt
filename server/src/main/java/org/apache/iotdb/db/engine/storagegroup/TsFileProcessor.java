@@ -786,6 +786,7 @@ public class TsFileProcessor {
     tsFileProcessorInfo.addTSPMemCost(chunkMetadataIncrement);
     WriteMemoryController controller = WriteMemoryController.getInstance();
     boolean allocateSuccess = false;
+    long startTime = System.nanoTime();
     try {
       while (workMemTable.needToAllocate(memTableIncrement)) {
         allocateSuccess =
@@ -795,6 +796,8 @@ public class TsFileProcessor {
         } else {
           storageGroupInfo.addAllocateSize(WriteMemoryController.FRAME_SIZE);
           workMemTable.addAllocatedMemSize(WriteMemoryController.FRAME_SIZE);
+          logger.error(
+              "Allocation time for {} is {} ns", storageGroupName, System.nanoTime() - startTime);
         }
       }
     } catch (WriteProcessRejectException e) {

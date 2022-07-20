@@ -33,7 +33,7 @@ public class MemoryController<T> {
   protected AtomicBoolean triggerRunning = new AtomicBoolean();
   protected long triggerThreshold = -1;
   protected long limitSize = -1;
-  protected ReentrantLock lock = new ReentrantLock(false);
+  protected ReentrantLock lock = new ReentrantLock(true);
   protected Condition condition = lock.newCondition();
   protected MemoryControllerTrigger<T> trigger = null;
 

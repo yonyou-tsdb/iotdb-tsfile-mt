@@ -46,7 +46,7 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   private Set<StorageGroupInfo> infoSet = new CopyOnWriteArraySet<>();
   private ExecutorService flushTaskSubmitThreadPool =
       IoTDBThreadPoolFactory.newFixedThreadPool(1, "FlushTask-Submit-Pool");
-  public static final long FRAME_SIZE = 2L * 1024L * 1024L;
+  public static final long FRAME_SIZE = 16L * 1024L * 1024L;
 
   public WriteMemoryController(long limitSize) {
     super(limitSize);
@@ -66,6 +66,10 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     }
     if (!info.isRecorded()) {
       info.setRecorded(true);
+      logger.error(
+          "Record {}-{}",
+          info.getDataRegion().getLogicalStorageGroupName(),
+          info.getDataRegion().getDataRegionId());
       infoSet.add(info);
     }
     return success;
@@ -102,6 +106,10 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     if (rejected && memoryUsage.get() < REJECT_THRESHOLD) {
       rejected = false;
     }
+    logger.error(
+        "Release {} MB, current usage is {} MB",
+        ((double) size) / 1024.0d / 1024.0d,
+        ((double) memoryUsage.get()) / 1024.0d / 1024.0d);
   }
 
   public boolean isRejected() {
@@ -120,15 +128,17 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   }
 
   public void applyExternalMemoryForFlushing(long size) {
-    //    memorySizeForWrite -= size;
-    //    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
-    //    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
+    memorySizeForWrite -= size;
+    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
+    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
+    END_FLUSH_THRESHOLD = 0.5 * FLUSH_THRESHOLD;
   }
 
   public void releaseExternalMemoryForFlushing(long size) {
-    //    memorySizeForWrite += size;
-    //    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
-    //    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
+    memorySizeForWrite += size;
+    FLUSH_THRESHOLD = memorySizeForWrite * config.getFlushProportion();
+    REJECT_THRESHOLD = memorySizeForWrite * config.getRejectProportion();
+    END_FLUSH_THRESHOLD = 0.5 * FLUSH_THRESHOLD;
   }
 
   protected void chooseMemtableToFlush(TsFileProcessor currentTsFileProcessor) {
