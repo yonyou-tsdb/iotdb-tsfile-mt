@@ -34,13 +34,11 @@ import org.apache.iotdb.consensus.multileader.thrift.TSyncLogReq;
 import org.apache.iotdb.consensus.multileader.wal.ConsensusReqReader;
 import org.apache.iotdb.consensus.multileader.wal.GetConsensusReqReaderPlan;
 import org.apache.iotdb.consensus.ratis.Utils;
-
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -220,7 +218,7 @@ public class LogDispatcher {
 
     public PendingBatch getBatch() {
       PendingBatch batch;
-      List<TLogBatch> logBatches = new ArrayList<>();
+      List<TLogBatch> logBatches = new LinkedList<>();
       long startIndex = syncStatus.getNextSendingIndex();
       logger.debug("get batch. startIndex: {}", startIndex);
       long endIndex;
