@@ -122,7 +122,8 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
       if (selectedTsFileProcessor == null) {
         break;
       }
-      if (selectedTsFileProcessor.shouldFlush()) {
+      if (selectedTsFileProcessor.getWorkMemTable() == null
+          || selectedTsFileProcessor.getWorkMemTable().shouldFlush()) {
         continue;
       }
       memCost += selectedTsFileProcessor.getWorkMemTableRamCost();
