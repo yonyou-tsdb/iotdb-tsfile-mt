@@ -218,6 +218,11 @@ public class IoTDBDescriptor {
               properties.getProperty(
                   "reject_proportion", Double.toString(conf.getRejectProportion()))));
 
+      conf.setWriteMemoryFrameSize(
+          Integer.parseInt(
+              properties.getProperty(
+                  "write_memory_frame_size", Integer.toString(conf.getWriteMemoryFrameSize()))));
+
       conf.setStorageGroupSizeReportThreshold(
           Long.parseLong(
               properties.getProperty(

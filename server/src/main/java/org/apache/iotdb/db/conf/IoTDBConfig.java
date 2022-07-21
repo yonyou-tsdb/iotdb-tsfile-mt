@@ -143,6 +143,9 @@ public class IoTDBConfig {
   /** Reject proportion for system */
   private double rejectProportion = 0.8;
 
+  /** Frame size in write memory allocation, the unit is KB */
+  private int writeMemoryFrameSize = 8196;
+
   /** If storage group increased more than this threshold, report to system. Unit: byte */
   private long storageGroupSizeReportThreshold = 16 * 1024 * 1024L;
 
@@ -2986,5 +2989,13 @@ public class IoTDBConfig {
 
   public void setAllocateMemoryForLastCache(long allocateMemoryForLastCache) {
     this.allocateMemoryForLastCache = allocateMemoryForLastCache;
+  }
+
+  public int getWriteMemoryFrameSize() {
+    return writeMemoryFrameSize;
+  }
+
+  public void setWriteMemoryFrameSize(int writeMemoryFrameSize) {
+    this.writeMemoryFrameSize = writeMemoryFrameSize;
   }
 }

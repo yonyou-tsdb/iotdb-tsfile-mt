@@ -33,7 +33,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class WriteMemoryController extends MemoryController<TsFileProcessor> {
+public class WriteMemoryController extends MemoryController<WriteMemoryController.TriggerParam> {
   private static final Logger logger = LoggerFactory.getLogger(WriteMemoryController.class);
   private static volatile WriteMemoryController INSTANCE;
   private static final IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
@@ -46,7 +46,7 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   private Set<StorageGroupInfo> infoSet = new CopyOnWriteArraySet<>();
   private ExecutorService flushTaskSubmitThreadPool =
       IoTDBThreadPoolFactory.newFixedThreadPool(1, "FlushTask-Submit-Pool");
-  public static final long FRAME_SIZE = 16L * 1024L * 1024L;
+  public static final long FRAME_SIZE = config.getWriteMemoryFrameSize() * 1024L;
 
   public WriteMemoryController(long limitSize) {
     super(limitSize);
@@ -55,10 +55,8 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   }
 
   public boolean tryAllocateMemory(long size, StorageGroupInfo info, TsFileProcessor processor) {
-    boolean success = super.tryAllocateMemory(size, processor);
-    if (!success) {
-      checkTrigger(memoryUsage.get(), processor);
-    }
+    TriggerParam param = new TriggerParam(processor);
+    boolean success = super.tryAllocateMemory(size, param);
     if (memoryUsage.get() > REJECT_THRESHOLD && !rejected) {
       logger.info(
           "Change system to reject status. Triggered by: logical SG ({}), mem cost delta ({}), totalSgMemCost ({}).",
@@ -69,10 +67,6 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     }
     if (!info.isRecorded()) {
       info.setRecorded(true);
-      logger.error(
-          "Record {}-{}",
-          info.getDataRegion().getLogicalStorageGroupName(),
-          info.getDataRegion().getDataRegionId());
       infoSet.add(info);
     }
     return success;
@@ -96,12 +90,6 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   public void releaseFlushingMemory(StorageGroupInfo info, long size) {
     this.flushingMemory.addAndGet(-size);
     this.releaseMemory(size);
-    logger.error(
-        "Release {} size of {}-{}, remaining size is {}",
-        ((double) size) / 1024.0d / 1024.0d,
-        info.getDataRegion().getLogicalStorageGroupName(),
-        info.getDataRegion().getDataRegionId(),
-        ((double) (memorySizeForWrite - memoryUsage.get())) / 1024.0d / 1024.0d);
   }
 
   public void releaseMemory(long size) {
@@ -116,9 +104,6 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   }
 
   public boolean checkRejected() {
-    if (rejected) {
-      checkTrigger(memoryUsage.get(), null);
-    }
     return rejected;
   }
 
@@ -147,7 +132,7 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     END_FLUSH_THRESHOLD = 0.5 * FLUSH_THRESHOLD;
   }
 
-  protected void chooseMemtableToFlush(TsFileProcessor currentTsFileProcessor) {
+  protected void chooseMemtableToFlush(TriggerParam triggerParam) {
     // If invoke flush by replaying logs, do not flush now!
     if (infoSet.size() == 0) {
       return;
@@ -162,10 +147,9 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     }
     long selectedCount = 0;
     long activeMemory = memoryUsage.get() - flushingMemory.get();
-    while (activeMemory - memCost > END_FLUSH_THRESHOLD) {
+    while (activeMemory - memCost > FLUSH_THRESHOLD) {
       if (allTsFileProcessors.isEmpty()
           || allTsFileProcessors.peek().getWorkMemTableRamCost() == 0) {
-        logger.error("No memtable to flush");
         return;
       }
       TsFileProcessor selectedTsFileProcessor = allTsFileProcessors.peek();
@@ -176,6 +160,9 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
           || selectedTsFileProcessor.getWorkMemTable().shouldFlush()) {
         allTsFileProcessors.poll();
         continue;
+      }
+      if (selectedTsFileProcessor == triggerParam.processor) {
+        triggerParam.currentProcessorSelected = true;
       }
       long memUsageForThisMemTable = selectedTsFileProcessor.getWorkMemTableAllocateSize();
       memCost += memUsageForThisMemTable;
@@ -190,5 +177,15 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
         selectedCount,
         ((double) flushingMemory.get()) / 1024.0d / 1024.0d,
         ((double) (memoryUsage.get() - flushingMemory.get())) / 1024.0d / 1024.0d);
+  }
+
+  static class TriggerParam {
+    TsFileProcessor processor;
+    public volatile boolean triggerRan = false;
+    public volatile boolean currentProcessorSelected = false;
+
+    public TriggerParam(TsFileProcessor processor) {
+      this.processor = processor;
+    }
   }
 }

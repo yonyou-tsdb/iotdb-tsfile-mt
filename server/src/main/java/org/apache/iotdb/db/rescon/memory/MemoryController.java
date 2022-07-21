@@ -137,16 +137,18 @@ public class MemoryController<T> {
     }
   }
 
-  protected void checkTrigger(long newUsage, T triggerParam) {
+  protected boolean checkTrigger(long newUsage, T triggerParam) {
     if (newUsage >= triggerThreshold && trigger != null) {
       if (triggerRunning.compareAndSet(false, true)) {
         try {
           trigger.run(triggerParam);
+          return true;
         } finally {
           triggerRunning.set(false);
         }
       }
     }
+    return false;
   }
 
   public long getCurrentMemoryUsage() {
