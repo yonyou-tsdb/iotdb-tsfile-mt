@@ -58,7 +58,7 @@ public class MemoryController<T> {
    * @param size
    * @return true if success to allocate else false
    */
-  public boolean tryAllocateMemory(long size, T triggerParam) {
+  public boolean tryAllocateMemory(long size, T triggerParam, boolean runTrigger) {
     while (true) {
       long current = memoryUsage.get();
       long newUsage = current + size;
@@ -70,7 +70,9 @@ public class MemoryController<T> {
       }
 
       if (memoryUsage.compareAndSet(current, newUsage)) {
-        checkTrigger(newUsage, triggerParam);
+        if (runTrigger) {
+          checkTrigger(newUsage, triggerParam);
+        }
         return true;
       }
     }
@@ -84,10 +86,10 @@ public class MemoryController<T> {
    * @throws InterruptedException
    */
   public void allocateMemoryMayBlock(long size, T triggerParam) throws InterruptedException {
-    if (!tryAllocateMemory(size, triggerParam)) {
+    if (!tryAllocateMemory(size, triggerParam, true)) {
       lock.lock();
       try {
-        while (!tryAllocateMemory(size, triggerParam)) {
+        while (!tryAllocateMemory(size, triggerParam, true)) {
           condition.await();
         }
       } finally {
@@ -107,10 +109,10 @@ public class MemoryController<T> {
   public boolean allocateMemoryMayBlock(long size, long timeout, T triggerParam)
       throws InterruptedException {
     long startTime = System.currentTimeMillis();
-    if (!tryAllocateMemory(size, triggerParam)) {
+    if (!tryAllocateMemory(size, triggerParam, true)) {
       lock.lock();
       try {
-        while (tryAllocateMemory(size, triggerParam)) {
+        while (tryAllocateMemory(size, triggerParam, true)) {
           if (System.currentTimeMillis() - startTime >= timeout) {
             return false;
           }

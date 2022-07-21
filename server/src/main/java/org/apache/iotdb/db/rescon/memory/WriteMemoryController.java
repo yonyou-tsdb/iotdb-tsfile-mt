@@ -53,7 +53,14 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
   }
 
   public boolean tryAllocateMemory(long size, StorageGroupInfo info, TsFileProcessor processor) {
-    boolean success = super.tryAllocateMemory(size, processor);
+    boolean success = false;
+    if (size < REJECT_THRESHOLD) {
+      success = super.tryAllocateMemory(size, processor, true);
+    } else {
+      if (chooseMemtableToFlush(processor)) {
+        success = super.tryAllocateMemory(size, processor, false);
+      }
+    }
     if (memoryUsage.get() > REJECT_THRESHOLD && !rejected) {
       logger.info(
           "Change system to reject status. Triggered by: logical SG ({}), mem cost delta ({}), totalSgMemCost ({}).",
@@ -100,15 +107,15 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     flushingMemory.addAndGet(size);
   }
 
-  protected void chooseMemtableToFlush(TsFileProcessor currentTsFileProcessor) {
+  protected boolean chooseMemtableToFlush(TsFileProcessor currentTsFileProcessor) {
     // If invoke flush by replaying logs, do not flush now!
     if (infoSet.size() == 0) {
-      return;
+      return false;
     }
     long memCost = 0;
     long activeMemSize = memoryUsage.get() - flushingMemory.get();
     if (activeMemSize - memCost < FLUSH_THRESHOLD) {
-      return;
+      return false;
     }
     PriorityQueue<TsFileProcessor> allTsFileProcessors =
         new PriorityQueue<>(
@@ -117,10 +124,11 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
       allTsFileProcessors.addAll(storageGroupInfo.getAllReportedTsp());
     }
     long selectedCount = 0;
+    boolean currentTsFileProcessorSelected = false;
     while (activeMemSize - memCost > FLUSH_THRESHOLD) {
       if (allTsFileProcessors.isEmpty()
           || allTsFileProcessors.peek().getWorkMemTableRamCost() == 0) {
-        return;
+        return false;
       }
       TsFileProcessor selectedTsFileProcessor = allTsFileProcessors.poll();
       if (selectedTsFileProcessor == null) {
@@ -130,15 +138,14 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
           || selectedTsFileProcessor.getWorkMemTable().shouldFlush()) {
         continue;
       }
+      if (selectedTsFileProcessor == currentTsFileProcessor) {
+        currentTsFileProcessorSelected = true;
+      }
       memCost += selectedTsFileProcessor.getWorkMemTableRamCost();
       selectedTsFileProcessor.setWorkMemTableShouldFlush();
       flushTaskSubmitThreadPool.submit(selectedTsFileProcessor::submitAFlushTask);
       selectedCount++;
     }
-    logger.info(
-        "Select {} memtable to flush, flushing memory is {}, remaining memory is {}",
-        selectedCount,
-        flushingMemory.get(),
-        memoryUsage.get() - flushingMemory.get());
+    return currentTsFileProcessorSelected;
   }
 }

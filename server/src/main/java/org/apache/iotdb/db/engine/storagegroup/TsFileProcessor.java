@@ -26,7 +26,6 @@ import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.conf.adapter.CompressionRatio;
-import org.apache.iotdb.db.engine.StorageEngine;
 import org.apache.iotdb.db.engine.flush.CloseFileListener;
 import org.apache.iotdb.db.engine.flush.FlushListener;
 import org.apache.iotdb.db.engine.flush.FlushManager;
@@ -85,6 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -786,11 +786,26 @@ public class TsFileProcessor {
     tsFileProcessorInfo.addTSPMemCost(chunkMetadataIncrement);
     WriteMemoryController controller = WriteMemoryController.getInstance();
     boolean allocateMemory = false;
+    long startTime = System.currentTimeMillis();
     try {
-      allocateMemory = controller.tryAllocateMemory(memTableIncrement, storageGroupInfo, this);
-      if (!allocateMemory) {
-        StorageEngine.blockInsertionIfReject(this);
-      }
+      do {
+        if (this.shouldFlush()) {
+          break;
+        }
+        allocateMemory = controller.tryAllocateMemory(memTableIncrement, storageGroupInfo, this);
+        try {
+          if (!allocateMemory) {
+            TimeUnit.MILLISECONDS.sleep(config.getCheckPeriodWhenInsertBlocked());
+            if (System.currentTimeMillis() - startTime
+                > config.getMaxWaitingTimeWhenInsertBlocked()) {
+              throw new WriteProcessRejectException(
+                  "System rejected over " + (System.currentTimeMillis() - startTime) + "ms");
+            }
+          }
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+        }
+      } while (!allocateMemory);
     } catch (WriteProcessRejectException e) {
       storageGroupInfo.releaseStorageGroupMemCost(memTableIncrement);
       tsFileProcessorInfo.releaseTSPMemCost(chunkMetadataIncrement);
