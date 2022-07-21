@@ -96,6 +96,10 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
     return INSTANCE;
   }
 
+  public void addFlushMemory(long size) {
+    flushingMemory.addAndGet(size);
+  }
+
   protected void chooseMemtableToFlush(TsFileProcessor currentTsFileProcessor) {
     // If invoke flush by replaying logs, do not flush now!
     if (infoSet.size() == 0) {
@@ -118,7 +122,7 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
           || allTsFileProcessors.peek().getWorkMemTableRamCost() == 0) {
         return;
       }
-      TsFileProcessor selectedTsFileProcessor = allTsFileProcessors.peek();
+      TsFileProcessor selectedTsFileProcessor = allTsFileProcessors.poll();
       if (selectedTsFileProcessor == null) {
         break;
       }
@@ -128,10 +132,8 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
       }
       memCost += selectedTsFileProcessor.getWorkMemTableRamCost();
       selectedTsFileProcessor.setWorkMemTableShouldFlush();
-      flushingMemory.addAndGet(selectedTsFileProcessor.getWorkMemTableRamCost());
       flushTaskSubmitThreadPool.submit(selectedTsFileProcessor::submitAFlushTask);
       selectedCount++;
-      allTsFileProcessors.poll();
     }
     logger.info(
         "Select {} memtable to flush, flushing memory is {}, remaining memory is {}",

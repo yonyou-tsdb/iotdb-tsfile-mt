@@ -1111,6 +1111,10 @@ public class TsFileProcessor {
       flushListener.onMemTableFlushStarted(tobeFlushed);
     }
 
+    if (enableMemControl) {
+      WriteMemoryController.getInstance().addFlushMemory(tobeFlushed.getTVListsRamCost());
+    }
+
     flushingMemTables.addLast(tobeFlushed);
     if (logger.isDebugEnabled()) {
       logger.debug(
