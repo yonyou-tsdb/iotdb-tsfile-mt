@@ -56,6 +56,9 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
 
   public boolean tryAllocateMemory(long size, StorageGroupInfo info, TsFileProcessor processor) {
     boolean success = super.tryAllocateMemory(size, processor);
+    if (!success) {
+      checkTrigger(memoryUsage.get(), processor);
+    }
     if (memoryUsage.get() > REJECT_THRESHOLD && !rejected) {
       logger.info(
           "Change system to reject status. Triggered by: logical SG ({}), mem cost delta ({}), totalSgMemCost ({}).",
@@ -112,7 +115,10 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
         ((double) memoryUsage.get()) / 1024.0d / 1024.0d);
   }
 
-  public boolean isRejected() {
+  public boolean checkRejected() {
+    if (rejected) {
+      checkTrigger(memoryUsage.get(), null);
+    }
     return rejected;
   }
 
@@ -168,6 +174,7 @@ public class WriteMemoryController extends MemoryController<TsFileProcessor> {
       }
       if (selectedTsFileProcessor.getWorkMemTable() == null
           || selectedTsFileProcessor.getWorkMemTable().shouldFlush()) {
+        allTsFileProcessors.poll();
         continue;
       }
       long memUsageForThisMemTable = selectedTsFileProcessor.getWorkMemTableAllocateSize();

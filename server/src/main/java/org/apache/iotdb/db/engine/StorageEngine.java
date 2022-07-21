@@ -195,7 +195,7 @@ public class StorageEngine implements IService {
   public static void blockInsertionIfReject(TsFileProcessor tsFileProcessor)
       throws WriteProcessRejectException {
     long startTime = System.currentTimeMillis();
-    while (WriteMemoryController.getInstance().isRejected()) {
+    while (WriteMemoryController.getInstance().checkRejected()) {
       if (tsFileProcessor != null && tsFileProcessor.shouldFlush()) {
         break;
       }

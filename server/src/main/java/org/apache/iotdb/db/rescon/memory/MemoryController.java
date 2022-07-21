@@ -137,7 +137,7 @@ public class MemoryController<T> {
     }
   }
 
-  private void checkTrigger(long newUsage, T triggerParam) {
+  protected void checkTrigger(long newUsage, T triggerParam) {
     if (newUsage >= triggerThreshold && trigger != null) {
       if (triggerRunning.compareAndSet(false, true)) {
         try {
