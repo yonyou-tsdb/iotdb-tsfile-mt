@@ -449,7 +449,10 @@ public class PartitionCache {
       long timestamp, Map<TConsensusGroupId, TRegionReplicaSet> map) {
     try {
       regionReplicaSetLock.writeLock().lock();
-      logger.info("[updateGroupIdToReplicaSetMap] timestamp:{}", timestamp);
+      logger.info(
+          "[updateGroupIdToReplicaSetMap] timestamp:{}, latestUpdateTime:{}",
+          timestamp,
+          latestUpdateTime.get());
       logger.info("[updateGroupIdToReplicaSetMap] map:");
       for (Map.Entry<TConsensusGroupId, TRegionReplicaSet> entry : map.entrySet()) {
         logger.info(
