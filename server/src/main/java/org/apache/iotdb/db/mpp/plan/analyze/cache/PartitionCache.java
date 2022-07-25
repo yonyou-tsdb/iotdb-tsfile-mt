@@ -19,6 +19,7 @@
 package org.apache.iotdb.db.mpp.plan.analyze.cache;
 
 import org.apache.iotdb.common.rpc.thrift.TConsensusGroupId;
+import org.apache.iotdb.common.rpc.thrift.TDataNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TRegionReplicaSet;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.common.rpc.thrift.TSeriesPartitionSlot;
@@ -68,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 public class PartitionCache {
   private static final Logger logger = LoggerFactory.getLogger(PartitionCache.class);
@@ -447,6 +449,17 @@ public class PartitionCache {
       long timestamp, Map<TConsensusGroupId, TRegionReplicaSet> map) {
     try {
       regionReplicaSetLock.writeLock().lock();
+      logger.info("[updateGroupIdToReplicaSetMap] timestamp:{}", timestamp);
+      logger.info("[updateGroupIdToReplicaSetMap] map:");
+      for (Map.Entry<TConsensusGroupId, TRegionReplicaSet> entry : map.entrySet()) {
+        logger.info(
+            "[updateGroupIdToReplicaSetMap]\t {}={}",
+            entry.getKey(),
+            entry.getValue().getDataNodeLocations().stream()
+                .map(TDataNodeLocation::getDataNodeId)
+                .collect(Collectors.toList()));
+      }
+
       boolean result = (timestamp == latestUpdateTime.accumulateAndGet(timestamp, Math::max));
       // if timestamp is greater than latestUpdateTime, then update
       if (result) {
