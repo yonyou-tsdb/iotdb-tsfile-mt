@@ -192,10 +192,13 @@ public class LogDispatcher {
                 pendingRequest.poll(PENDING_REQUEST_TAKING_TIME_OUT_IN_SEC, TimeUnit.SECONDS);
             if (request != null) {
               bufferedRequest.add(request);
-              // If write pressure is low, we simply sleep a little to reduce the number of RPC
-              if (pendingRequest.size() <= config.getReplication().getMaxRequestPerBatch()) {
-                Thread.sleep(config.getReplication().getMaxWaitingTimeForAccumulatingBatchInMs());
-              }
+              //              If write pressure is low, we simply sleep a little to reduce the
+              // number of RPC
+              //              if (pendingRequest.size() <=
+              // config.getReplication().getMaxRequestPerBatch()) {
+              //
+              // Thread.sleep(config.getReplication().getMaxWaitingTimeForAccumulatingBatchInMs());
+              //              }
             }
           }
           // we may block here if the synchronization pipeline is full
@@ -216,6 +219,12 @@ public class LogDispatcher {
       // indicating that insert nodes whose search index are before this value can be deleted
       // safely
       reader.setSafelyDeletedSearchIndex(impl.getCurrentSafelyDeletedSearchIndex());
+      // notify
+      if (impl.needToThrottleUp()) {
+        synchronized (impl.getStateMachine()) {
+          impl.getStateMachine().notifyAll();
+        }
+      }
     }
 
     public PendingBatch getBatch() {

@@ -53,6 +53,9 @@ public class MultiLeaderServerImpl {
   private static final String CONFIGURATION_FILE_NAME = "configuration.dat";
 
   private final Logger logger = LoggerFactory.getLogger(MultiLeaderServerImpl.class);
+  private static final int THROTTLE_UPPER_BOUND = 1000;
+  private static final int THROTTLE_LOWER_BOUND = 300;
+  private static final long TIME_OUT = 60 * 1000L;
 
   private final Peer thisNode;
   private final IStateMachine stateMachine;
@@ -110,6 +113,14 @@ public class MultiLeaderServerImpl {
    */
   public TSStatus write(IConsensusRequest request) {
     synchronized (stateMachine) {
+      if (needToThrottleDown()) {
+        logger.info("[Throttle Down] index:{}, safeIndex:{}", getIndex(), getCurrentSafelyDeletedSearchIndex());
+        try {
+          stateMachine.wait(TIME_OUT);
+        } catch (InterruptedException e) {
+          logger.error("Failed to wait", e);
+        }
+      }
       IndexedConsensusRequest indexedConsensusRequest =
           buildIndexedConsensusRequestForLocalRequest(request);
       if (indexedConsensusRequest.getSearchIndex() % 1000 == 0) {
@@ -217,5 +228,13 @@ public class MultiLeaderServerImpl {
 
   public MultiLeaderConfig getConfig() {
     return config;
+  }
+
+  public boolean needToThrottleDown() {
+    return getIndex() - getCurrentSafelyDeletedSearchIndex() > THROTTLE_UPPER_BOUND;
+  }
+
+  public boolean needToThrottleUp() {
+    return getIndex() - getCurrentSafelyDeletedSearchIndex() < THROTTLE_LOWER_BOUND;
   }
 }
