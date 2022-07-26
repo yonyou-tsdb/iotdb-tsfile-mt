@@ -114,7 +114,10 @@ public class MultiLeaderServerImpl {
   public TSStatus write(IConsensusRequest request) {
     synchronized (stateMachine) {
       if (needToThrottleDown()) {
-        logger.info("[Throttle Down] index:{}, safeIndex:{}", getIndex(), getCurrentSafelyDeletedSearchIndex());
+        logger.info(
+            "[Throttle Down] index:{}, safeIndex:{}",
+            getIndex(),
+            getCurrentSafelyDeletedSearchIndex());
         try {
           stateMachine.wait(TIME_OUT);
         } catch (InterruptedException e) {
