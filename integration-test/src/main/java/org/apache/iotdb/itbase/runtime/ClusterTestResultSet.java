@@ -93,11 +93,7 @@ public class ClusterTestResultSet implements ResultSet {
 
   @Override
   public String getString(int columnIndex) throws SQLException {
-    RequestDelegate<String> delegate = createLocalRequestDelegate();
-    for (ResultSet rs : resultSets) {
-      delegate.addRequest(() -> rs.getString(columnIndex));
-    }
-    return delegate.requestAllAndCompare();
+    return getColumnValue(rs -> rs.getString(columnIndex));
   }
 
   @Override
@@ -225,11 +221,7 @@ public class ClusterTestResultSet implements ResultSet {
 
   @Override
   public String getString(String columnLabel) throws SQLException {
-    RequestDelegate<String> delegate = createLocalRequestDelegate();
-    for (ResultSet rs : resultSets) {
-      delegate.addRequest(() -> rs.getString(columnLabel));
-    }
-    return delegate.requestAllAndCompare();
+    return getColumnValue(rs -> rs.getString(columnLabel));
   }
 
   @Override
@@ -1174,5 +1166,27 @@ public class ClusterTestResultSet implements ResultSet {
 
   private <T> RequestDelegate<T> createLocalRequestDelegate() {
     return new SerialRequestDelegate<>(endpoints);
+  }
+
+  private <T> T getColumnValue(SQLValueGetter<ResultSet, T> valueGetter) throws SQLException {
+    RequestDelegate<T> delegate = createLocalRequestDelegate();
+    for (ResultSet rs : resultSets) {
+      delegate.addRequest(() -> valueGetter.apply(rs));
+    }
+    List<T> data = delegate.requestAll();
+
+    // TODO: according to whether this is a disoreded dataset, we cache the results or comparing
+    // them
+    // immediately.
+    //    for (int i = 0; i < data.size(); i++) {
+    //      List<StringBuilder> list = cachedResult.get(i);
+    //      list.get(list.size() - 1).append(data.get(i).toString()).append(",");
+    //    }
+    return data.get(0);
+  }
+
+  @FunctionalInterface
+  private interface SQLValueGetter<T, R> {
+    R apply(T t) throws SQLException;
   }
 }
