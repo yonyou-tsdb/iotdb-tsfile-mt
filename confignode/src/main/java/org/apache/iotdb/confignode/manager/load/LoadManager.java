@@ -271,7 +271,7 @@ public class LoadManager {
         .forEach(
             nodeCache -> {
               boolean updateResult = nodeCache.updateLoadStatistic();
-              if (conf.getRoutingPolicy().equals(RouteBalancer.greedyPolicy)
+              if (conf.getRoutingPolicy().equals(RouteBalancer.GREEDY_POLICY)
                   && nodeCache instanceof DataNodeHeartbeatCache) {
                 // We need a broadcast when some DataNode fail down
                 isNeedBroadcast.compareAndSet(false, updateResult);
@@ -283,7 +283,7 @@ public class LoadManager {
         .forEach(
             regionGroupCache -> {
               boolean updateResult = regionGroupCache.updateLoadStatistic();
-              if (conf.getRoutingPolicy().equals(RouteBalancer.leaderPolicy)) {
+              if (conf.getRoutingPolicy().equals(RouteBalancer.LEADER_POLICY)) {
                 // We need a broadcast when the leadership changed
                 isNeedBroadcast.compareAndSet(false, updateResult);
               }
@@ -416,7 +416,7 @@ public class LoadManager {
         .collect(Collectors.toList());
   }
 
-  public void printRegionRouteMap(
+  public static void printRegionRouteMap(
       long timestamp, Map<TConsensusGroupId, TRegionReplicaSet> regionRouteMap) {
     LOGGER.info("[latestRegionRouteMap] timestamp:{}", timestamp);
     LOGGER.info("[latestRegionRouteMap] RegionRouteMap:");

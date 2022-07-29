@@ -29,17 +29,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * TODO: This class might be split into SchemaRegionGroupCache and DataRegionGroupCache
+ */
 public class RegionGroupCache implements IRegionGroupCache {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(RegionGroupCache.class);
 
-  // TODO: This class might be split into SchemaRegionGroupCache and DataRegionGroupCache
-
-  private static final int maximumWindowSize = 100;
-  // Map<DataNodeId(where a RegionReplica resides), LinkedList<RegionHeartbeatSample>>
+  private static final int MAXIMUM_WINDOW_SIZE = 100;
 
   private final TConsensusGroupId consensusGroupId;
 
+  // Map<DataNodeId(where a RegionReplica resides), LinkedList<RegionHeartbeatSample>>
   private final Map<Integer, LinkedList<RegionHeartbeatSample>> slidingWindow;
 
   // Indicates the version of the statistics
@@ -70,7 +71,7 @@ public class RegionGroupCache implements IRegionGroupCache {
         samples.add(newHeartbeatSample);
       }
 
-      if (samples.size() > maximumWindowSize) {
+      if (samples.size() > MAXIMUM_WINDOW_SIZE) {
         samples.removeFirst();
       }
     }
@@ -100,7 +101,7 @@ public class RegionGroupCache implements IRegionGroupCache {
       leaderDataNodeId.set(updateLeaderDataNodeId);
     }
 
-    return !(originLeaderDataNodeId == leaderDataNodeId.get());
+    return originLeaderDataNodeId != leaderDataNodeId.get();
   }
 
   @Override

@@ -115,6 +115,8 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
+import static org.apache.iotdb.confignode.manager.load.LoadManager.printRegionRouteMap;
+
 /** ConfigNodeRPCServer exposes the interface that interacts with the DataNode */
 public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Iface {
 
@@ -537,9 +539,7 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
   @Override
   public TRegionRouteMapResp getLatestRegionRouteMap() throws TException {
     TRegionRouteMapResp resp = configManager.getLatestRegionRouteMap();
-    configManager
-        .getLoadManager()
-        .printRegionRouteMap(resp.getTimestamp(), resp.getRegionRouteMap());
+    printRegionRouteMap(resp.getTimestamp(), resp.getRegionRouteMap());
     return resp;
   }
 
