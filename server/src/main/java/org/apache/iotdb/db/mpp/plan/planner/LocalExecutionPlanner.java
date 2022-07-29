@@ -46,7 +46,7 @@ import org.apache.iotdb.db.mpp.execution.operator.process.AggregationOperator;
 import org.apache.iotdb.db.mpp.execution.operator.process.DeviceMergeOperator;
 import org.apache.iotdb.db.mpp.execution.operator.process.DeviceViewOperator;
 import org.apache.iotdb.db.mpp.execution.operator.process.FillOperator;
-import org.apache.iotdb.db.mpp.execution.operator.process.FilterOperator;
+import org.apache.iotdb.db.mpp.execution.operator.process.FilterAndProjectOperator;
 import org.apache.iotdb.db.mpp.execution.operator.process.LastQueryMergeOperator;
 import org.apache.iotdb.db.mpp.execution.operator.process.LimitOperator;
 import org.apache.iotdb.db.mpp.execution.operator.process.LinearFillOperator;
@@ -92,6 +92,7 @@ import org.apache.iotdb.db.mpp.execution.operator.schema.NodeManageMemoryMergeOp
 import org.apache.iotdb.db.mpp.execution.operator.schema.NodePathsConvertOperator;
 import org.apache.iotdb.db.mpp.execution.operator.schema.NodePathsCountOperator;
 import org.apache.iotdb.db.mpp.execution.operator.schema.NodePathsSchemaScanOperator;
+import org.apache.iotdb.db.mpp.execution.operator.schema.PathsUsingTemplateScanOperator;
 import org.apache.iotdb.db.mpp.execution.operator.schema.SchemaFetchMergeOperator;
 import org.apache.iotdb.db.mpp.execution.operator.schema.SchemaFetchScanOperator;
 import org.apache.iotdb.db.mpp.execution.operator.schema.SchemaQueryMergeOperator;
@@ -108,6 +109,7 @@ import org.apache.iotdb.db.mpp.execution.operator.source.SeriesScanOperator;
 import org.apache.iotdb.db.mpp.execution.timer.ITimeSliceAllocator;
 import org.apache.iotdb.db.mpp.execution.timer.RuleBasedTimeSliceAllocator;
 import org.apache.iotdb.db.mpp.plan.analyze.TypeProvider;
+import org.apache.iotdb.db.mpp.plan.expression.Expression;
 import org.apache.iotdb.db.mpp.plan.expression.leaf.TimeSeriesOperand;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.PlanNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.PlanNodeId;
@@ -120,6 +122,7 @@ import org.apache.iotdb.db.mpp.plan.planner.plan.node.metedata.read.NodeManageme
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.metedata.read.NodePathsConvertNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.metedata.read.NodePathsCountNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.metedata.read.NodePathsSchemaScanNode;
+import org.apache.iotdb.db.mpp.plan.planner.plan.node.metedata.read.PathsUsingTemplateScanNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.metedata.read.SchemaFetchMergeNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.metedata.read.SchemaFetchScanNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.metedata.read.SchemaQueryMergeNode;
@@ -133,7 +136,6 @@ import org.apache.iotdb.db.mpp.plan.planner.plan.node.process.DeviceViewNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.process.ExchangeNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.process.FillNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.process.FilterNode;
-import org.apache.iotdb.db.mpp.plan.planner.plan.node.process.FilterNullNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.process.GroupByLevelNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.process.LastQueryMergeNode;
 import org.apache.iotdb.db.mpp.plan.planner.plan.node.process.LimitNode;
@@ -155,8 +157,13 @@ import org.apache.iotdb.db.mpp.plan.planner.plan.parameter.GroupByLevelDescripto
 import org.apache.iotdb.db.mpp.plan.planner.plan.parameter.InputLocation;
 import org.apache.iotdb.db.mpp.plan.planner.plan.parameter.OutputColumn;
 import org.apache.iotdb.db.mpp.plan.statement.component.FillPolicy;
-import org.apache.iotdb.db.mpp.plan.statement.component.OrderBy;
+import org.apache.iotdb.db.mpp.plan.statement.component.Ordering;
+import org.apache.iotdb.db.mpp.plan.statement.component.SortItem;
+import org.apache.iotdb.db.mpp.plan.statement.component.SortKey;
 import org.apache.iotdb.db.mpp.plan.statement.literal.Literal;
+import org.apache.iotdb.db.mpp.transformation.dag.column.ColumnTransformer;
+import org.apache.iotdb.db.mpp.transformation.dag.column.leaf.LeafColumnTransformer;
+import org.apache.iotdb.db.mpp.transformation.dag.udf.UDTFContext;
 import org.apache.iotdb.db.utils.datastructure.TimeSelector;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.read.TimeValuePair;
@@ -165,6 +172,8 @@ import org.apache.iotdb.tsfile.read.filter.basic.Filter;
 import org.apache.iotdb.tsfile.read.filter.operator.Gt;
 import org.apache.iotdb.tsfile.read.filter.operator.GtEq;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.Validate;
 
 import java.io.IOException;
@@ -268,7 +277,7 @@ public class LocalExecutionPlanner {
     @Override
     public Operator visitSeriesScan(SeriesScanNode node, LocalExecutionPlanContext context) {
       PartialPath seriesPath = node.getSeriesPath();
-      boolean ascending = node.getScanOrder() == OrderBy.TIMESTAMP_ASC;
+      boolean ascending = node.getScanOrder() == Ordering.ASC;
       OperatorContext operatorContext =
           context.instanceContext.addOperatorContext(
               context.getNextOperatorId(),
@@ -296,7 +305,7 @@ public class LocalExecutionPlanner {
     public Operator visitAlignedSeriesScan(
         AlignedSeriesScanNode node, LocalExecutionPlanContext context) {
       AlignedPath seriesPath = node.getAlignedPath();
-      boolean ascending = node.getScanOrder() == OrderBy.TIMESTAMP_ASC;
+      boolean ascending = node.getScanOrder() == Ordering.ASC;
       OperatorContext operatorContext =
           context.instanceContext.addOperatorContext(
               context.getNextOperatorId(),
@@ -324,7 +333,7 @@ public class LocalExecutionPlanner {
     public Operator visitAlignedSeriesAggregationScan(
         AlignedSeriesAggregationScanNode node, LocalExecutionPlanContext context) {
       AlignedPath seriesPath = node.getAlignedPath();
-      boolean ascending = node.getScanOrder() == OrderBy.TIMESTAMP_ASC;
+      boolean ascending = node.getScanOrder() == Ordering.ASC;
       OperatorContext operatorContext =
           context.instanceContext.addOperatorContext(
               context.getNextOperatorId(),
@@ -403,6 +412,8 @@ public class LocalExecutionPlanner {
         return visitLevelTimeSeriesCount((LevelTimeSeriesCountNode) node, context);
       } else if (node instanceof NodePathsSchemaScanNode) {
         return visitNodePathsSchemaScan((NodePathsSchemaScanNode) node, context);
+      } else if (node instanceof PathsUsingTemplateScanNode) {
+        return visitPathsUsingTemplateScan((PathsUsingTemplateScanNode) node, context);
       }
       return visitPlan(node, context);
     }
@@ -426,7 +437,8 @@ public class LocalExecutionPlanner {
           node.getValue(),
           node.isContains(),
           node.isOrderByHeat(),
-          node.isPrefixPath());
+          node.isPrefixPath(),
+          node.getTemplateMap());
     }
 
     @Override
@@ -577,7 +589,7 @@ public class LocalExecutionPlanner {
     public Operator visitSeriesAggregationScan(
         SeriesAggregationScanNode node, LocalExecutionPlanContext context) {
       PartialPath seriesPath = node.getSeriesPath();
-      boolean ascending = node.getScanOrder() == OrderBy.TIMESTAMP_ASC;
+      boolean ascending = node.getScanOrder() == Ordering.ASC;
       OperatorContext operatorContext =
           context.instanceContext.addOperatorContext(
               context.getNextOperatorId(),
@@ -648,16 +660,17 @@ public class LocalExecutionPlanner {
       List<TSDataType> dataTypes = getOutputColumnTypes(node, context.getTypeProvider());
       TimeSelector selector = null;
       TimeComparator timeComparator = null;
-      for (OrderBy orderBy : node.getMergeOrders()) {
-        switch (orderBy) {
-          case TIMESTAMP_ASC:
+      for (SortItem sortItem : node.getMergeOrderParameter().getSortItemList()) {
+        if (sortItem.getSortKey() == SortKey.TIME) {
+          Ordering ordering = sortItem.getOrdering();
+          if (ordering == Ordering.ASC) {
             selector = new TimeSelector(node.getChildren().size() << 1, true);
             timeComparator = ASC_TIME_COMPARATOR;
-            break;
-          case TIMESTAMP_DESC:
+          } else {
             selector = new TimeSelector(node.getChildren().size() << 1, false);
             timeComparator = DESC_TIME_COMPARATOR;
-            break;
+          }
+          break;
         }
       }
 
@@ -815,7 +828,7 @@ public class LocalExecutionPlanner {
             node.isKeepNull(),
             node.getZoneId(),
             context.getTypeProvider(),
-            node.getScanOrder() == OrderBy.TIMESTAMP_ASC);
+            node.getScanOrder() == Ordering.ASC);
       } catch (QueryProcessException | IOException e) {
         throw new RuntimeException(e);
       }
@@ -823,37 +836,125 @@ public class LocalExecutionPlanner {
 
     @Override
     public Operator visitFilter(FilterNode node, LocalExecutionPlanContext context) {
+      final Expression filterExpression = node.getPredicate();
+      final TypeProvider typeProvider = context.getTypeProvider();
+
+      // check whether predicate contains Non-Mappable UDF
+      if (!filterExpression.isMappable(typeProvider)) {
+        throw new UnsupportedOperationException("Filter can not contain Non-Mappable UDF");
+      }
+
+      final Expression[] projectExpressions = node.getOutputExpressions();
+      final Operator inputOperator = generateOnlyChildOperator(node, context);
+      final Map<String, List<InputLocation>> inputLocations = makeLayout(node);
+      final List<TSDataType> inputDataTypes = getInputColumnTypes(node, context.getTypeProvider());
+      final List<TSDataType> filterOutputDataTypes = new ArrayList<>(inputDataTypes);
       final OperatorContext operatorContext =
           context.instanceContext.addOperatorContext(
               context.getNextOperatorId(),
               node.getPlanNodeId(),
-              FilterOperator.class.getSimpleName());
-      final Operator inputOperator = generateOnlyChildOperator(node, context);
-      final List<TSDataType> inputDataTypes = getInputColumnTypes(node, context.getTypeProvider());
-      final Map<String, List<InputLocation>> inputLocations = makeLayout(node);
-
+              FilterAndProjectOperator.class.getSimpleName());
       context.getTimeSliceAllocator().recordExecutionWeight(operatorContext, 1);
 
+      boolean hasNonMappableUDF = false;
+      for (Expression expression : projectExpressions) {
+        if (!expression.isMappable(typeProvider)) {
+          hasNonMappableUDF = true;
+          break;
+        }
+      }
+
+      // init UDTFContext;
+      UDTFContext filterContext = new UDTFContext(node.getZoneId());
+      filterContext.constructUdfExecutors(new Expression[] {filterExpression});
+
+      // records LeafColumnTransformer of filter
+      List<LeafColumnTransformer> filterLeafColumnTransformerList = new ArrayList<>();
+
+      // records common ColumnTransformer between filter and project expressions
+      List<ColumnTransformer> commonTransformerList = new ArrayList<>();
+
+      // records LeafColumnTransformer of project expressions
+      List<LeafColumnTransformer> projectLeafColumnTransformerList = new ArrayList<>();
+
+      // records subexpression -> ColumnTransformer for filter
+      Map<Expression, ColumnTransformer> filterExpressionColumnTransformerMap = new HashMap<>();
+
+      ColumnTransformer filterOutputTransformer =
+          filterExpression.constructColumnTransformer(
+              filterContext,
+              typeProvider,
+              filterLeafColumnTransformerList,
+              inputLocations,
+              filterExpressionColumnTransformerMap,
+              ImmutableMap.of(),
+              ImmutableList.of(),
+              ImmutableList.of(),
+              0);
+
+      List<ColumnTransformer> projectOutputTransformerList = new ArrayList<>();
+
+      Map<Expression, ColumnTransformer> projectExpressionColumnTransformerMap = new HashMap<>();
+
+      // init project transformer when project expressions are all mappable
+      if (!hasNonMappableUDF) {
+        // init project UDTFContext
+        UDTFContext projectContext = new UDTFContext(node.getZoneId());
+        projectContext.constructUdfExecutors(projectExpressions);
+
+        for (Expression expression : projectExpressions) {
+          projectOutputTransformerList.add(
+              expression.constructColumnTransformer(
+                  projectContext,
+                  typeProvider,
+                  projectLeafColumnTransformerList,
+                  inputLocations,
+                  projectExpressionColumnTransformerMap,
+                  filterExpressionColumnTransformerMap,
+                  commonTransformerList,
+                  filterOutputDataTypes,
+                  inputLocations.size()));
+        }
+      }
+
+      Operator filter =
+          new FilterAndProjectOperator(
+              operatorContext,
+              inputOperator,
+              filterOutputDataTypes,
+              filterLeafColumnTransformerList,
+              filterOutputTransformer,
+              commonTransformerList,
+              projectLeafColumnTransformerList,
+              projectOutputTransformerList,
+              hasNonMappableUDF);
+
+      // Project expressions don't contain Non-Mappable UDF, TransformOperator is not needed
+      if (!hasNonMappableUDF) {
+        return filter;
+      }
+
+      // has Non-Mappable UDF, we wrap a TransformOperator for further calculation
       try {
-        return new FilterOperator(
-            operatorContext,
-            inputOperator,
+        final OperatorContext transformContext =
+            context.instanceContext.addOperatorContext(
+                context.getNextOperatorId(),
+                node.getPlanNodeId(),
+                TransformOperator.class.getSimpleName());
+        context.getTimeSliceAllocator().recordExecutionWeight(transformContext, 1);
+        return new TransformOperator(
+            transformContext,
+            filter,
             inputDataTypes,
             inputLocations,
-            node.getPredicate(),
-            node.getOutputExpressions(),
+            projectExpressions,
             node.isKeepNull(),
             node.getZoneId(),
             context.getTypeProvider(),
-            node.getScanOrder() == OrderBy.TIMESTAMP_ASC);
+            node.getScanOrder() == Ordering.ASC);
       } catch (QueryProcessException | IOException e) {
         throw new RuntimeException(e);
       }
-    }
-
-    @Override
-    public Operator visitFilterNull(FilterNullNode node, LocalExecutionPlanContext context) {
-      return super.visitFilterNull(node, context);
     }
 
     @Override
@@ -865,7 +966,7 @@ public class LocalExecutionPlanner {
           node.getChildren().stream()
               .map(child -> child.accept(this, context))
               .collect(Collectors.toList());
-      boolean ascending = node.getScanOrder() == OrderBy.TIMESTAMP_ASC;
+      boolean ascending = node.getScanOrder() == Ordering.ASC;
       List<Aggregator> aggregators = new ArrayList<>();
       Map<String, List<InputLocation>> layout = makeLayout(node);
       for (GroupByLevelDescriptor descriptor : node.getGroupByLevelDescriptors()) {
@@ -905,7 +1006,7 @@ public class LocalExecutionPlanner {
               node.getPlanNodeId(),
               SlidingWindowAggregationOperator.class.getSimpleName());
       Operator child = node.getChild().accept(this, context);
-      boolean ascending = node.getScanOrder() == OrderBy.TIMESTAMP_ASC;
+      boolean ascending = node.getScanOrder() == Ordering.ASC;
       List<Aggregator> aggregators = new ArrayList<>();
       Map<String, List<InputLocation>> layout = makeLayout(node);
       for (AggregationDescriptor descriptor : node.getAggregationDescriptorList()) {
@@ -962,7 +1063,7 @@ public class LocalExecutionPlanner {
           node.getChildren().stream()
               .map(child -> child.accept(this, context))
               .collect(Collectors.toList());
-      boolean ascending = node.getScanOrder() == OrderBy.TIMESTAMP_ASC;
+      boolean ascending = node.getScanOrder() == Ordering.ASC;
       List<Aggregator> aggregators = new ArrayList<>();
       Map<String, List<InputLocation>> layout = makeLayout(node);
       for (AggregationDescriptor descriptor : node.getAggregationDescriptorList()) {
@@ -1051,9 +1152,7 @@ public class LocalExecutionPlanner {
               node.getPlanNodeId(),
               TimeJoinOperator.class.getSimpleName());
       TimeComparator timeComparator =
-          node.getMergeOrder() == OrderBy.TIMESTAMP_ASC
-              ? ASC_TIME_COMPARATOR
-              : DESC_TIME_COMPARATOR;
+          node.getMergeOrder() == Ordering.ASC ? ASC_TIME_COMPARATOR : DESC_TIME_COMPARATOR;
       List<OutputColumn> outputColumns = generateOutputColumns(node);
       List<ColumnMerger> mergers = createColumnMergers(outputColumns, timeComparator);
       List<TSDataType> outputColumnTypes = getOutputColumnTypes(node, context.getTypeProvider());
@@ -1166,7 +1265,7 @@ public class LocalExecutionPlanner {
               node.getPlanNodeId(),
               SchemaFetchMergeOperator.class.getSimpleName());
       context.getTimeSliceAllocator().recordExecutionWeight(operatorContext, 1);
-      return new SchemaFetchMergeOperator(operatorContext, children);
+      return new SchemaFetchMergeOperator(operatorContext, children, node.getStorageGroupList());
     }
 
     @Override
@@ -1182,6 +1281,7 @@ public class LocalExecutionPlanner {
           node.getPlanNodeId(),
           operatorContext,
           node.getPatternTree(),
+          node.getTemplateMap(),
           ((SchemaDriverContext) (context.instanceContext.getDriverContext())).getSchemaRegion());
     }
 
@@ -1190,7 +1290,7 @@ public class LocalExecutionPlanner {
       PartialPath seriesPath = node.getSeriesPath().transformToPartialPath();
       TimeValuePair timeValuePair = DATA_NODE_SCHEMA_CACHE.getLastCache(seriesPath);
       if (timeValuePair == null) { // last value is not cached
-        return createUpdateLastCacheOperator(node, context, seriesPath);
+        return createUpdateLastCacheOperator(node, context, node.getSeriesPath());
       } else if (!satisfyFilter(
           context.lastQueryTimeFilter, timeValuePair)) { // cached last value is not satisfied
 
@@ -1199,7 +1299,7 @@ public class LocalExecutionPlanner {
                 || context.lastQueryTimeFilter instanceof GtEq);
         // time filter is not > or >=, we still need to read from disk
         if (!isFilterGtOrGe) {
-          return createUpdateLastCacheOperator(node, context, seriesPath);
+          return createUpdateLastCacheOperator(node, context, node.getSeriesPath());
         } else { // otherwise, we just ignore it and return null
           return null;
         }
@@ -1210,7 +1310,7 @@ public class LocalExecutionPlanner {
     }
 
     private UpdateLastCacheOperator createUpdateLastCacheOperator(
-        LastQueryScanNode node, LocalExecutionPlanContext context, PartialPath fullPath) {
+        LastQueryScanNode node, LocalExecutionPlanContext context, MeasurementPath fullPath) {
       SeriesAggregationScanOperator lastQueryScan = createLastQueryScanOperator(node, context);
 
       OperatorContext operatorContext =
@@ -1262,7 +1362,8 @@ public class LocalExecutionPlanner {
       PartialPath seriesPath = node.getSeriesPath().transformToPartialPath();
       TimeValuePair timeValuePair = DATA_NODE_SCHEMA_CACHE.getLastCache(seriesPath);
       if (timeValuePair == null) { // last value is not cached
-        return createUpdateLastCacheOperator(node, context, seriesPath);
+        return createUpdateLastCacheOperator(
+            node, context, node.getSeriesPath().getMeasurementPath());
       } else if (!satisfyFilter(
           context.lastQueryTimeFilter, timeValuePair)) { // cached last value is not satisfied
 
@@ -1271,7 +1372,8 @@ public class LocalExecutionPlanner {
                 || context.lastQueryTimeFilter instanceof GtEq);
         // time filter is not > or >=, we still need to read from disk
         if (!isFilterGtOrGe) {
-          return createUpdateLastCacheOperator(node, context, seriesPath);
+          return createUpdateLastCacheOperator(
+              node, context, node.getSeriesPath().getMeasurementPath());
         } else { // otherwise, we just ignore it and return null
           return null;
         }
@@ -1282,7 +1384,9 @@ public class LocalExecutionPlanner {
     }
 
     private UpdateLastCacheOperator createUpdateLastCacheOperator(
-        AlignedLastQueryScanNode node, LocalExecutionPlanContext context, PartialPath fullPath) {
+        AlignedLastQueryScanNode node,
+        LocalExecutionPlanContext context,
+        MeasurementPath fullPath) {
       AlignedSeriesAggregationScanOperator lastQueryScan =
           createLastQueryScanOperator(node, context);
 
@@ -1414,6 +1518,18 @@ public class LocalExecutionPlanner {
               .collect(Collectors.toList());
       Validate.isTrue(children.size() == 1);
       return children.get(0);
+    }
+
+    public Operator visitPathsUsingTemplateScan(
+        PathsUsingTemplateScanNode node, LocalExecutionPlanContext context) {
+      OperatorContext operatorContext =
+          context.instanceContext.addOperatorContext(
+              context.getNextOperatorId(),
+              node.getPlanNodeId(),
+              PathsUsingTemplateScanNode.class.getSimpleName());
+      context.getTimeSliceAllocator().recordExecutionWeight(operatorContext, 1);
+      return new PathsUsingTemplateScanOperator(
+          node.getPlanNodeId(), operatorContext, node.getTemplateId());
     }
   }
 

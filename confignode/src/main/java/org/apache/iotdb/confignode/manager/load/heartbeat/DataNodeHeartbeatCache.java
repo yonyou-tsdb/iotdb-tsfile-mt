@@ -28,11 +28,11 @@ public class DataNodeHeartbeatCache implements INodeCache {
   // TODO: This class might be split into DataNodeCache and ConfigNodeCache
 
   // Cache heartbeat samples
-  private static final int maximumWindowSize = 100;
+  private static final int MAXIMUM_WINDOW_SIZE = 100;
   private final LinkedList<NodeHeartbeatSample> slidingWindow;
 
   // For guiding queries, the higher the score the higher the load
-  private volatile float loadScore;
+  private volatile long loadScore;
   // For showing cluster
   private volatile NodeStatus status;
 
@@ -53,7 +53,7 @@ public class DataNodeHeartbeatCache implements INodeCache {
         slidingWindow.add(newHeartbeatSample);
       }
 
-      if (slidingWindow.size() > maximumWindowSize) {
+      if (slidingWindow.size() > MAXIMUM_WINDOW_SIZE) {
         slidingWindow.removeFirst();
       }
     }
@@ -94,7 +94,7 @@ public class DataNodeHeartbeatCache implements INodeCache {
   }
 
   @Override
-  public float getLoadScore() {
+  public long getLoadScore() {
     // Return a copy of loadScore
     switch (status) {
       case Running:
@@ -102,7 +102,7 @@ public class DataNodeHeartbeatCache implements INodeCache {
       case Unknown:
       default:
         // The Unknown Node will get the highest loadScore
-        return Float.MAX_VALUE;
+        return Long.MAX_VALUE;
     }
   }
 

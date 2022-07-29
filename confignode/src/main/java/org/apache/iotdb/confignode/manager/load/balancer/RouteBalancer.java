@@ -36,8 +36,8 @@ import java.util.Map;
  */
 public class RouteBalancer {
 
-  public static final String leaderPolicy = "leader";
-  public static final String greedyPolicy = "greedy";
+  public static final String LEADER_POLICY = "leader";
+  public static final String GREEDY_POLICY = "greedy";
 
   private final IManager configManager;
 
@@ -45,14 +45,14 @@ public class RouteBalancer {
     this.configManager = configManager;
   }
 
-  public Map<TConsensusGroupId, TRegionReplicaSet> genRealTimeRoutingPolicy(
+  public Map<TConsensusGroupId, TRegionReplicaSet> genLatestRegionRouteMap(
       List<TRegionReplicaSet> regionReplicaSets) {
-    return genRouter().genRealTimeRoutingPolicy(regionReplicaSets);
+    return genRouter().genLatestRegionRouteMap(regionReplicaSets);
   }
 
   private IRouter genRouter() {
     String policy = ConfigNodeDescriptor.getInstance().getConf().getRoutingPolicy();
-    if (policy.equals(leaderPolicy)) {
+    if (policy.equals(LEADER_POLICY)) {
       return new LeaderRouter(
           getLoadManager().getAllLeadership(), getLoadManager().getAllLoadScores());
     } else {
