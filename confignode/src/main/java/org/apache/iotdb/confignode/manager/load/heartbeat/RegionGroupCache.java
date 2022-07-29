@@ -41,6 +41,9 @@ public class RegionGroupCache implements IRegionGroupCache {
   private final TConsensusGroupId consensusGroupId;
 
   // Map<DataNodeId(where a RegionReplica resides), LinkedList<RegionHeartbeatSample>>
+
+  private final TConsensusGroupId consensusGroupId;
+
   private final Map<Integer, LinkedList<RegionHeartbeatSample>> slidingWindow;
 
   // Indicates the version of the statistics
