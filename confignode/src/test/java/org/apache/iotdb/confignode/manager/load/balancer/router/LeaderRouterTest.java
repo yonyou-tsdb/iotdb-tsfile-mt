@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.junit.Assert.assertFalse;
+
 public class LeaderRouterTest {
 
   @Test
@@ -68,13 +70,14 @@ public class LeaderRouterTest {
           .cacheHeartbeatSample(
               new NodeHeartbeatSample(currentTimeMillis - i * 1000, currentTimeMillis - i * 1000));
     }
-    nodeCacheMap.values().forEach(INodeCache::updateLoadStatistic);
+    nodeCacheMap.values().forEach(e -> assertFalse(e.updateLoadStatistic()));
 
     // Get the loadScoreMap
     Map<Integer, Long> loadScoreMap = new ConcurrentHashMap<>();
     nodeCacheMap.forEach(
         (dataNodeId, heartbeatCache) ->
             loadScoreMap.put(dataNodeId, heartbeatCache.getLoadScore()));
+    System.out.println(loadScoreMap);
 
     // Build TRegionReplicaSet
     TConsensusGroupId groupId1 = new TConsensusGroupId(TConsensusGroupType.SchemaRegion, 1);
@@ -124,8 +127,9 @@ public class LeaderRouterTest {
     regionGroupCacheMap.forEach(
         (groupId, regionGroupCache) ->
             leaderMap.put(groupId, regionGroupCache.getLeaderDataNodeId()));
+    System.out.println(leaderMap);
 
-    // Check result
+    // Check resultresult = {ConcurrentHashMap@1508}  size = 2
     Map<TConsensusGroupId, TRegionReplicaSet> result =
         new LeaderRouter(leaderMap, loadScoreMap).genLatestRegionRouteMap(regionReplicaSets);
     TRegionReplicaSet result1 = result.get(groupId1);
@@ -168,6 +172,7 @@ public class LeaderRouterTest {
       regionGroupCacheMap.forEach(
           (groupId, regionGroupCache) ->
               leaderMap.put(groupId, regionGroupCache.getLeaderDataNodeId()));
+      // System.out.println("multi-leader: " + leaderMap);
 
       // Check result
       result = new LeaderRouter(leaderMap, loadScoreMap).genLatestRegionRouteMap(regionReplicaSets);
@@ -207,6 +212,7 @@ public class LeaderRouterTest {
     regionGroupCacheMap.forEach(
         (groupId, regionGroupCache) ->
             leaderMap.put(groupId, regionGroupCache.getLeaderDataNodeId()));
+    System.out.println("multi-leader after a datanode down: " + leaderMap);
 
     // Check result
     result = new LeaderRouter(leaderMap, loadScoreMap).genLatestRegionRouteMap(regionReplicaSets);

@@ -23,6 +23,9 @@ import org.apache.iotdb.common.rpc.thrift.TDataNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TRegionReplicaSet;
 import org.apache.iotdb.tsfile.utils.Pair;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** The LeaderRouter always pick the leader Replica */
 public class LeaderRouter implements IRouter {
+  private static final Logger LOGGER = LoggerFactory.getLogger(LeaderRouter.class);
 
   // Map<RegionGroupId, leader location>
   private final Map<TConsensusGroupId, Integer> leaderMap;
@@ -52,8 +56,7 @@ public class LeaderRouter implements IRouter {
           int leaderId = leaderMap.getOrDefault(replicaSet.getRegionId(), -1);
           TRegionReplicaSet sortedReplicaSet = new TRegionReplicaSet();
           sortedReplicaSet.setRegionId(replicaSet.getRegionId());
-
-          /* 1. Pick leader if leader exists */
+          // 1. Pick leader if leader exists
           if (leaderId != -1) {
             for (TDataNodeLocation dataNodeLocation : replicaSet.getDataNodeLocations()) {
               if (dataNodeLocation.getDataNodeId() == leaderId) {
@@ -61,9 +64,8 @@ public class LeaderRouter implements IRouter {
               }
             }
           }
-
-          /* 2. Sort replicaSets by loadScore and pick the rest */
-          // List<Pair<loadScore, TDataNodeLocation>> for sorting
+          // 2. Sort replicaSets by loadScore and pick the rest. List<Pair<loadScore,
+          // TDataNodeLocation>> for sorting
           List<Pair<Double, TDataNodeLocation>> sortList = new Vector<>();
           replicaSet
               .getDataNodeLocations()
@@ -85,10 +87,13 @@ public class LeaderRouter implements IRouter {
               sortedReplicaSet.addToDataNodeLocations(entry.getRight());
             }
           }
-
           result.put(sortedReplicaSet.getRegionId(), sortedReplicaSet);
         });
-
+    LOGGER.info("genLatestRegionRouteMap");
+    LOGGER.info("leaderMap:");
+    leaderMap.forEach((id, leader) -> System.out.println(id + "," + leader));
+    LOGGER.info("loadScoreMap:");
+    loadScoreMap.forEach((id, score) -> System.out.println(id + "," + score));
     return result;
   }
 }

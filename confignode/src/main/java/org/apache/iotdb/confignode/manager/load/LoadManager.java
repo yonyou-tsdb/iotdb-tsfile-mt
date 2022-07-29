@@ -80,7 +80,7 @@ public class LoadManager {
   private static final Logger LOGGER = LoggerFactory.getLogger(LoadManager.class);
 
   private static final ConfigNodeConfig conf = ConfigNodeDescriptor.getInstance().getConf();
-  private static final long heartbeatInterval = conf.getHeartbeatInterval();
+  private static final long HEARTBEAT_INTERVAL = conf.getHeartbeatInterval();
   public static final TEndPoint currentNode =
       new TEndPoint(conf.getInternalAddress(), conf.getInternalPort());
 
@@ -223,7 +223,7 @@ public class LoadManager {
                 heartBeatExecutor,
                 this::heartbeatLoopBody,
                 0,
-                heartbeatInterval,
+                HEARTBEAT_INTERVAL,
                 TimeUnit.MILLISECONDS);
         LOGGER.info("Heartbeat service is started successfully.");
       }
@@ -235,7 +235,7 @@ public class LoadManager {
                 loadBalancingExecutor,
                 this::updateNodeLoadStatistic,
                 0,
-                heartbeatInterval,
+                HEARTBEAT_INTERVAL,
                 TimeUnit.MILLISECONDS);
         LOGGER.info("LoadBalancing service is started successfully.");
       }
@@ -340,7 +340,7 @@ public class LoadManager {
    */
   private void pingRegisteredDataNodes(List<TDataNodeConfiguration> registeredDataNodes) {
     // Generate heartbeat request
-    THeartbeatReq heartbeatReq = genHeartbeatReq();
+    // THeartbeatReq heartbeatReq = genHeartbeatReq();
 
     // Send heartbeat requests
     for (TDataNodeConfiguration dataNodeInfo : registeredDataNodes) {
@@ -352,9 +352,10 @@ public class LoadManager {
                       dataNodeInfo.getLocation().getDataNodeId(),
                       empty -> new DataNodeHeartbeatCache()),
               regionGroupCacheMap);
+
       AsyncDataNodeClientPool.getInstance()
           .getDataNodeHeartBeat(
-              dataNodeInfo.getLocation().getInternalEndPoint(), heartbeatReq, handler);
+              dataNodeInfo.getLocation().getInternalEndPoint(), genHeartbeatReq(), handler);
     }
   }
 

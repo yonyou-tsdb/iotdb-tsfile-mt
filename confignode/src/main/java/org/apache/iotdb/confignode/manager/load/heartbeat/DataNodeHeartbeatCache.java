@@ -22,10 +22,11 @@ import org.apache.iotdb.commons.cluster.NodeStatus;
 
 import java.util.LinkedList;
 
-/** DataNodeHeartbeatCache caches and maintains all the heartbeat data */
+/**
+ * DataNodeHeartbeatCache caches and maintains all the heartbeat data TODO: This class might be
+ * split into DataNodeCache and ConfigNodeCache
+ */
 public class DataNodeHeartbeatCache implements INodeCache {
-
-  // TODO: This class might be split into DataNodeCache and ConfigNodeCache
 
   // Cache heartbeat samples
   private static final int MAXIMUM_WINDOW_SIZE = 100;

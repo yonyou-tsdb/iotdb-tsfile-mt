@@ -22,6 +22,8 @@ public class RegionHeartbeatSample {
 
   // Unit: ms
   private final long sendTimestamp;
+
+  // never used
   private final long receiveTimestamp;
 
   private final int belongedDataNodeId;

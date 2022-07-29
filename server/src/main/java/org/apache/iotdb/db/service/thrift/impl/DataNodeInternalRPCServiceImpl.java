@@ -427,22 +427,20 @@ public class DataNodeInternalRPCServiceImpl implements IDataNodeRPCService.Iface
       DataRegionConsensusImpl.getInstance()
           .getAllConsensusGroupIds()
           .forEach(
-              groupId -> {
-                result.put(
-                    groupId.convertToTConsensusGroupId(),
-                    DataRegionConsensusImpl.getInstance().isLeader(groupId));
-              });
+              groupId ->
+                  result.put(
+                      groupId.convertToTConsensusGroupId(),
+                      DataRegionConsensusImpl.getInstance().isLeader(groupId)));
     }
 
     if (SchemaRegionConsensusImpl.getInstance() != null) {
       SchemaRegionConsensusImpl.getInstance()
           .getAllConsensusGroupIds()
           .forEach(
-              groupId -> {
-                result.put(
-                    groupId.convertToTConsensusGroupId(),
-                    SchemaRegionConsensusImpl.getInstance().isLeader(groupId));
-              });
+              groupId ->
+                  result.put(
+                      groupId.convertToTConsensusGroupId(),
+                      SchemaRegionConsensusImpl.getInstance().isLeader(groupId)));
     }
     return result;
   }

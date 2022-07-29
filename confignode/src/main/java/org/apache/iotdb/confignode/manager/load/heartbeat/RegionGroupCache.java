@@ -29,9 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * TODO: This class might be split into SchemaRegionGroupCache and DataRegionGroupCache
- */
+/** TODO: This class might be split into SchemaRegionGroupCache and DataRegionGroupCache */
 public class RegionGroupCache implements IRegionGroupCache {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(RegionGroupCache.class);
@@ -41,9 +39,6 @@ public class RegionGroupCache implements IRegionGroupCache {
   private final TConsensusGroupId consensusGroupId;
 
   // Map<DataNodeId(where a RegionReplica resides), LinkedList<RegionHeartbeatSample>>
-
-  private final TConsensusGroupId consensusGroupId;
-
   private final Map<Integer, LinkedList<RegionHeartbeatSample>> slidingWindow;
 
   // Indicates the version of the statistics
