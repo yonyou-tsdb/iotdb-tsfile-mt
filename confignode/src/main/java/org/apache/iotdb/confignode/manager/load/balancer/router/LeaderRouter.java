@@ -89,11 +89,11 @@ public class LeaderRouter implements IRouter {
           }
           result.put(sortedReplicaSet.getRegionId(), sortedReplicaSet);
         });
-    LOGGER.info("genLatestRegionRouteMap");
+    LOGGER.info("genLatestRegionRouteMap:");
     LOGGER.info("leaderMap:");
-    leaderMap.forEach((id, leader) -> System.out.println(id + "," + leader));
+    leaderMap.forEach((id, leader) -> LOGGER.info(id + "," + leader));
     LOGGER.info("loadScoreMap:");
-    loadScoreMap.forEach((id, score) -> System.out.println(id + "," + score));
+    loadScoreMap.forEach((id, score) -> LOGGER.info(id + "," + score));
     return result;
   }
 }
