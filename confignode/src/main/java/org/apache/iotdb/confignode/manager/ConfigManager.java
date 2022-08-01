@@ -487,7 +487,7 @@ public class ConfigManager implements IManager {
       // TODO: Delete or hide this LOGGER before officially release.
       LOGGER.info(
           "GetOrCreateSchemaPartition receive devicePaths: {}, return TSchemaPartitionResp: {}",
-          devicePaths,
+          new HashSet<>(devicePaths),
           resp);
 
       return resp;

@@ -81,7 +81,7 @@ public class LoadManager {
 
   private static final ConfigNodeConfig conf = ConfigNodeDescriptor.getInstance().getConf();
   private static final long HEARTBEAT_INTERVAL = conf.getHeartbeatInterval();
-  public static final TEndPoint currentNode =
+  public static final TEndPoint CURRENT_NODE =
       new TEndPoint(conf.getInternalAddress(), conf.getInternalPort());
 
   private final IManager configManager;
@@ -368,7 +368,7 @@ public class LoadManager {
 
     // Send heartbeat requests
     for (TConfigNodeLocation configNodeLocation : registeredConfigNodes) {
-      if (configNodeLocation.getInternalEndPoint().equals(currentNode)) {
+      if (configNodeLocation.getInternalEndPoint().equals(CURRENT_NODE)) {
         // Skip itself
         nodeCacheMap.putIfAbsent(
             configNodeLocation.getConfigNodeId(), new ConfigNodeHeartbeatCache(configNodeLocation));

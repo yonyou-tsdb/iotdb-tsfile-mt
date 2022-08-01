@@ -26,11 +26,9 @@ import org.apache.iotdb.tsfile.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /** The LeaderRouter always pick the leader Replica */
 public class LeaderRouter implements IRouter {
@@ -38,6 +36,7 @@ public class LeaderRouter implements IRouter {
 
   // Map<RegionGroupId, leader location>
   private final Map<TConsensusGroupId, Integer> leaderMap;
+
   // Map<DataNodeId, loadScore>
   private final Map<Integer, Long> loadScoreMap;
 
@@ -66,7 +65,7 @@ public class LeaderRouter implements IRouter {
           }
           // 2. Sort replicaSets by loadScore and pick the rest. List<Pair<loadScore,
           // TDataNodeLocation>> for sorting
-          List<Pair<Double, TDataNodeLocation>> sortList = new Vector<>();
+          List<Pair<Double, TDataNodeLocation>> sortList = new ArrayList<>();
           replicaSet
               .getDataNodeLocations()
               .forEach(
@@ -89,6 +88,17 @@ public class LeaderRouter implements IRouter {
           }
           result.put(sortedReplicaSet.getRegionId(), sortedReplicaSet);
         });
+    LOGGER.info("replicaSets:");
+    replicaSets.forEach(
+        t ->
+            LOGGER.info(
+                t.getRegionId().getType()
+                    + ","
+                    + t.getRegionId().getId()
+                    + ","
+                    + t.getDataNodeLocations().stream()
+                        .map(TDataNodeLocation::getDataNodeId)
+                        .collect(Collectors.toList())));
     LOGGER.info("genLatestRegionRouteMap:");
     LOGGER.info("leaderMap:");
     leaderMap.forEach((id, leader) -> LOGGER.info(id + "," + leader));

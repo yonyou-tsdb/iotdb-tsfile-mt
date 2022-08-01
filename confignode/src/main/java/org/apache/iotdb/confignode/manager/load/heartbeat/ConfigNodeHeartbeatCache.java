@@ -27,7 +27,7 @@ import java.util.LinkedList;
 public class ConfigNodeHeartbeatCache implements INodeCache {
 
   // Cache heartbeat samples
-  private static final int maximumWindowSize = 100;
+  private static final int MAXIMUM_WINDOW_SIZE = 100;
   private final LinkedList<NodeHeartbeatSample> slidingWindow;
 
   private final TConfigNodeLocation configNodeLocation;
@@ -51,7 +51,7 @@ public class ConfigNodeHeartbeatCache implements INodeCache {
         slidingWindow.add(newHeartbeatSample);
       }
 
-      if (slidingWindow.size() > maximumWindowSize) {
+      if (slidingWindow.size() > MAXIMUM_WINDOW_SIZE) {
         slidingWindow.removeFirst();
       }
     }
@@ -59,7 +59,7 @@ public class ConfigNodeHeartbeatCache implements INodeCache {
 
   @Override
   public boolean updateLoadStatistic() {
-    if (configNodeLocation.getInternalEndPoint().equals(LoadManager.currentNode)) {
+    if (configNodeLocation.getInternalEndPoint().equals(LoadManager.CURRENT_NODE)) {
       // We don't need to update itself
       return false;
     }
