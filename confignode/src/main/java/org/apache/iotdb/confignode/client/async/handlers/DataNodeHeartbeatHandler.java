@@ -62,11 +62,12 @@ public class DataNodeHeartbeatHandler implements AsyncMethodCallback<THeartbeatR
     // Update RegionCache
     if (heartbeatResp.isSetJudgedLeaders()) {
       LOGGER.info(
-          "DataNodeHeartbeatHandler complete, heartBeatTime: {}, receiveTime: {}, dataNode: {}, judgeLeaders: {}",
-          heartbeatResp.getHeartbeatTimestamp(),
-          receiveTime,
-          dataNodeLocation.getDataNodeId(),
-          heartbeatResp.getJudgedLeaders());
+          String.format(
+              "DataNodeHeartbeatHandler complete, heartBeatTime: %s, receiveTime: %s, dataNode: %s, judgeLeaders: %s",
+              heartbeatResp.getHeartbeatTimestamp(),
+              receiveTime,
+              dataNodeLocation.getDataNodeId(),
+              heartbeatResp.getJudgedLeaders()));
       heartbeatResp
           .getJudgedLeaders()
           .forEach(
