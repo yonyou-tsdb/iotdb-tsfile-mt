@@ -118,6 +118,8 @@ public class LogDispatcher {
                 "{}: Log queue of {} is full, ignore the log to this node",
                 impl.getThisNode().getGroupId(),
                 thread.getPeer());
+          } else {
+            thread.countQueue();
           }
         });
   }
