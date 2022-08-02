@@ -74,8 +74,8 @@ public class WriteFragmentParallelPlanner implements IFragmentParallelPlaner {
 
   private TDataNodeLocation fakeSelectDataNode(TRegionReplicaSet regionReplicaSet) {
     String[] candidate = new String[] {"172.20.31.41", "172.20.31.42", "172.20.31.43"};
-    //    int targetIndex = regionReplicaSet.regionId.id % 3;
-    int targetIndex = 1;
+    int targetIndex = regionReplicaSet.regionId.id % 3;
+    //    int targetIndex = 1;
     for (TDataNodeLocation location : regionReplicaSet.getDataNodeLocations()) {
       if (location.internalEndPoint.getIp().equals(candidate[targetIndex])) {
         return location;
