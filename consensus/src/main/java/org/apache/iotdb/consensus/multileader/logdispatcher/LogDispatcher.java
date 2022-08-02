@@ -20,6 +20,7 @@
 package org.apache.iotdb.consensus.multileader.logdispatcher;
 
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.client.IClientManager;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.consensus.common.Peer;
@@ -356,8 +357,10 @@ public class LogDispatcher {
     private void constructBatchIndexedFromConsensusRequest(
         IndexedConsensusRequest request, List<TLogBatch> logBatches) {
       for (IConsensusRequest innerRequest : request.getRequests()) {
+        long startTime = System.nanoTime();
         logBatches.add(
             new TLogBatch(innerRequest.serializeToByteBuffer(), request.getSearchIndex(), false));
+        StepTracker.trace("serializeFromQueue", startTime, System.nanoTime());
       }
     }
   }

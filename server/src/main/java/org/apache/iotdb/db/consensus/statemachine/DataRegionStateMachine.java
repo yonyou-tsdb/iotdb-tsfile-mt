@@ -129,8 +129,7 @@ public class DataRegionStateMachine extends BaseStateMachine {
       }
       requestCache.notifyAll();
       InsertNode nextNode = requestCache.poll();
-      //      logger.info("queue size {}, syncIndex = {}", requestCache.size(),
-      // nextNode.getSyncIndex());
+      logger.info("queue size {}, syncIndex = {}", requestCache.size(), nextNode.getSyncIndex());
       return nextNode;
     }
   }
