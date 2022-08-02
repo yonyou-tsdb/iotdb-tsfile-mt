@@ -73,6 +73,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
       // We use synchronized to ensure atomicity of executing multiple logs
       if (!req.getBatches().isEmpty()) {
         synchronized (impl.getStateMachine()) {
+          long stateMachineStartTime = System.nanoTime();
           List<IConsensusRequest> consensusRequests = new ArrayList<>();
           long currentSearchIndex = req.getBatches().get(0).getSearchIndex();
           for (TLogBatch batch : req.getBatches()) {
@@ -95,6 +96,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
                 impl.getStateMachine()
                     .write(impl.buildIndexedConsensusRequestForRemoteRequest(consensusRequests)));
           }
+          StepTracker.trace("stateMachineWriteBatch", stateMachineStartTime, System.nanoTime());
         }
       }
       logger.debug("Execute TSyncLogReq for {} with result {}", req.consensusGroupId, statuses);
