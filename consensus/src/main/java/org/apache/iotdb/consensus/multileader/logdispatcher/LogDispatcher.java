@@ -140,6 +140,7 @@ public class LogDispatcher {
 
     private ConsensusReqReader.ReqIterator walEntryiterator;
     private long iteratorIndex = 1;
+    private long queueCount = 0;
 
     public LogDispatcherThread(Peer peer, MultiLeaderConfig config) {
       this.peer = peer;
@@ -167,6 +168,14 @@ public class LogDispatcher {
 
     public MultiLeaderConfig getConfig() {
       return config;
+    }
+
+    public void countQueue() {
+      queueCount++;
+      logger.info(
+          String.format(
+              "DataRegion[%s]->%s: put request to queue: %d",
+              peer.getGroupId().getId(), peer.getEndpoint().ip, queueCount));
     }
 
     public BlockingQueue<IndexedConsensusRequest> getPendingRequest() {
