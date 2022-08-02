@@ -52,6 +52,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
 
   @Override
   public void syncLog(TSyncLogReq req, AsyncMethodCallback<TSyncLogRes> resultHandler) {
+    long startTime = System.nanoTime();
     try {
       ConsensusGroupId groupId =
           ConsensusGroupId.Factory.createFromTConsensusGroupId(req.getConsensusGroupId());
@@ -99,6 +100,8 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
       resultHandler.onComplete(new TSyncLogRes(statuses));
     } catch (Exception e) {
       resultHandler.onError(e);
+    } finally {
+
     }
   }
 
