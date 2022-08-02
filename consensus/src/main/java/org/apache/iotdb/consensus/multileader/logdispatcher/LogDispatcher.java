@@ -20,6 +20,7 @@
 package org.apache.iotdb.consensus.multileader.logdispatcher;
 
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.client.IClientManager;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.consensus.common.Peer;
@@ -114,21 +115,32 @@ public class LogDispatcher {
               "{}: Push a log to the queue, where the queue length is {}",
               impl.getThisNode().getGroupId(),
               thread.getPendingRequest().size());
-          if (!thread
-              .getPendingRequest()
-              .offer(new IndexedConsensusRequest(serializedRequest, request.getSearchIndex()))) {
-            logger.info(
-                "{}: Log queue to {} is full. skip current request: {}",
-                impl.getThisNode().getGroupId(),
-                thread.getPeer().getEndpoint().getIp(),
-                request.getSearchIndex());
-            logger.debug(
-                "{}: Log queue of {} is full, ignore the log to this node",
-                impl.getThisNode().getGroupId(),
-                thread.getPeer());
-          } else {
-            thread.countQueueUsage(request.getSearchIndex());
+          long startTime = System.nanoTime();
+          try {
+            thread
+                .getPendingRequest()
+                .put(new IndexedConsensusRequest(serializedRequest, request.getSearchIndex()));
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          } finally {
+            StepTracker.trace("putToQueue", startTime, System.nanoTime());
           }
+          //          if (!thread
+          //              .getPendingRequest()
+          //              .put(new IndexedConsensusRequest(serializedRequest,
+          // request.getSearchIndex()))) {
+          //            logger.info(
+          //                "{}: Log queue to {} is full. skip current request: {}",
+          //                impl.getThisNode().getGroupId(),
+          //                thread.getPeer().getEndpoint().getIp(),
+          //                request.getSearchIndex());
+          //            logger.debug(
+          //                "{}: Log queue of {} is full, ignore the log to this node",
+          //                impl.getThisNode().getGroupId(),
+          //                thread.getPeer());
+          //          } else {
+          //            thread.countQueueUsage(request.getSearchIndex());
+          //          }
         });
   }
 
