@@ -20,6 +20,7 @@
 package org.apache.iotdb.consensus.multileader.service;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.consensus.ConsensusGroupId;
 import org.apache.iotdb.consensus.common.request.ByteBufferConsensusRequest;
 import org.apache.iotdb.consensus.common.request.IConsensusRequest;
@@ -101,7 +102,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
     } catch (Exception e) {
       resultHandler.onError(e);
     } finally {
-
+      StepTracker.trace("syncLog", 25, startTime, System.nanoTime());
     }
   }
 

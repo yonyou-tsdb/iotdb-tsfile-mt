@@ -19,6 +19,7 @@
 package org.apache.iotdb.db.engine.storagegroup;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.commons.StepTracker;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.commons.concurrent.ThreadName;
 import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
@@ -1060,7 +1061,9 @@ public class DataRegion {
     if (enableMemControl) {
       StorageEngineV2.blockInsertionIfReject(null);
     }
+    long startTimeBeforeLock = System.nanoTime();
     writeLock("insertTablet");
+    long startTimeAfterLock = System.nanoTime();
     try {
       TSStatus[] results = new TSStatus[insertTabletNode.getRowCount()];
       Arrays.fill(results, RpcUtils.SUCCESS_STATUS);
@@ -1144,6 +1147,8 @@ public class DataRegion {
       //      TODO: trigger // fire trigger after insertion
       //      TriggerEngine.fire(TriggerEvent.AFTER_INSERT, insertTabletPlan, firePosition);
     } finally {
+      StepTracker.trace("lockAndInsert", startTimeBeforeLock, System.nanoTime());
+      StepTracker.trace("InsertTabletWithoutLock", startTimeAfterLock, System.nanoTime());
       writeUnlock();
     }
   }
