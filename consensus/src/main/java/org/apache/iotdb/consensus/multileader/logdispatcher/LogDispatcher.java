@@ -40,6 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -106,17 +107,27 @@ public class LogDispatcher {
   }
 
   public void offer(IndexedConsensusRequest request) {
+    List<ByteBuffer> serializedRequest = request.buildSerializedRequests();
     threads.forEach(
         thread -> {
           logger.debug(
               "{}: Push a log to the queue, where the queue length is {}",
               impl.getThisNode().getGroupId(),
               thread.getPendingRequest().size());
-          if (!thread.getPendingRequest().offer(request)) {
+          if (!thread
+              .getPendingRequest()
+              .offer(new IndexedConsensusRequest(serializedRequest, request.getSearchIndex()))) {
+            logger.info(
+                "{}: Log queue to {} is full. skip current request: {}",
+                impl.getThisNode().getGroupId(),
+                thread.getPeer().getEndpoint().getIp(),
+                request.getSearchIndex());
             logger.debug(
                 "{}: Log queue of {} is full, ignore the log to this node",
                 impl.getThisNode().getGroupId(),
                 thread.getPeer());
+          } else {
+            thread.countQueueUsage(request.getSearchIndex());
           }
         });
   }
@@ -139,6 +150,7 @@ public class LogDispatcher {
 
     private ConsensusReqReader.ReqIterator walEntryiterator;
     private long iteratorIndex = 1;
+    private long queueProcessCount = 0;
 
     public LogDispatcherThread(Peer peer, MultiLeaderConfig config) {
       this.peer = peer;
@@ -154,6 +166,16 @@ public class LogDispatcher {
 
     public IndexController getController() {
       return controller;
+    }
+
+    public void countQueueUsage(long searchIndex) {
+      this.queueProcessCount++;
+      logger.info(
+          "{}: queue to {}: put request to queue. count: {}, searchIndex {}",
+          impl.getThisNode().getGroupId(),
+          getPeer().getEndpoint().getIp(),
+          this.queueProcessCount,
+          searchIndex);
     }
 
     public long getCurrentSyncIndex() {
@@ -355,9 +377,8 @@ public class LogDispatcher {
 
     private void constructBatchIndexedFromConsensusRequest(
         IndexedConsensusRequest request, List<TLogBatch> logBatches) {
-      for (IConsensusRequest innerRequest : request.getRequests()) {
-        logBatches.add(
-            new TLogBatch(innerRequest.serializeToByteBuffer(), request.getSearchIndex(), false));
+      for (ByteBuffer innerRequest : request.getSerializedRequests()) {
+        logBatches.add(new TLogBatch(innerRequest, request.getSearchIndex(), false));
       }
     }
   }
