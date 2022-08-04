@@ -117,7 +117,7 @@ public class LogDispatcher {
           if (!thread
               .getPendingRequest()
               .offer(new IndexedConsensusRequest(serializedRequest, request.getSearchIndex()))) {
-            logger.info(
+            logger.debug(
                 "{}: Log queue to {} is full. skip current request: {}",
                 impl.getThisNode().getGroupId(),
                 thread.getPeer().getEndpoint().getIp(),
@@ -170,7 +170,7 @@ public class LogDispatcher {
 
     public void countQueueUsage(long searchIndex) {
       this.queueProcessCount++;
-      logger.info(
+      logger.debug(
           "{}: queue to {}: put request to queue. count: {}, searchIndex {}",
           impl.getThisNode().getGroupId(),
           getPeer().getEndpoint().getIp(),
