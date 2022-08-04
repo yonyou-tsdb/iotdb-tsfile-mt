@@ -53,7 +53,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
 
   @Override
   public void syncLog(TSyncLogReq req, AsyncMethodCallback<TSyncLogRes> resultHandler) {
-    long startTime = System.nanoTime();
+    long syncLogStartTime = System.nanoTime();
     try {
       ConsensusGroupId groupId =
           ConsensusGroupId.Factory.createFromTConsensusGroupId(req.getConsensusGroupId());
@@ -83,18 +83,22 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
                     : new ByteBufferConsensusRequest(batch.data);
             // merge TLogBatch with same search index into one request
             if (batch.getSearchIndex() != currentSearchIndex) {
+              long followerWriteStartTime = System.nanoTime();
               statuses.add(
                   impl.getStateMachine()
                       .write(impl.buildIndexedConsensusRequestForRemoteRequest(consensusRequests)));
+              StepTracker.trace("followerWrite", followerWriteStartTime, System.nanoTime());
               consensusRequests = new ArrayList<>();
             }
             consensusRequests.add(request);
           }
           // write last request
           if (!consensusRequests.isEmpty()) {
+            long followerWriteStartTime = System.nanoTime();
             statuses.add(
                 impl.getStateMachine()
                     .write(impl.buildIndexedConsensusRequestForRemoteRequest(consensusRequests)));
+            StepTracker.trace("followerWrite", followerWriteStartTime, System.nanoTime());
           }
           StepTracker.trace("stateMachineWriteBatch", stateMachineStartTime, System.nanoTime());
         }
@@ -104,7 +108,7 @@ public class MultiLeaderRPCServiceProcessor implements MultiLeaderConsensusIServ
     } catch (Exception e) {
       resultHandler.onError(e);
     } finally {
-      StepTracker.trace("syncLog", 25, startTime, System.nanoTime());
+      StepTracker.trace("syncLog", 25, syncLogStartTime, System.nanoTime());
     }
   }
 

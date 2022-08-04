@@ -110,8 +110,10 @@ public class MultiLeaderServerImpl {
    * records the index of the log and writes locally, and then asynchronous replication is performed
    */
   public TSStatus write(IConsensusRequest request) {
+    long leaderWriteStartTime = System.nanoTime();
     synchronized (stateMachine) {
-      long startTime = System.nanoTime();
+      StepTracker.trace("LeaderWriteWaitLock", leaderWriteStartTime, System.nanoTime());
+      long startTimeAfterLock = System.nanoTime();
       try {
         IndexedConsensusRequest indexedConsensusRequest =
             buildIndexedConsensusRequestForLocalRequest(request);
@@ -124,6 +126,8 @@ public class MultiLeaderServerImpl {
         }
         // TODO wal and memtable
         TSStatus result = stateMachine.write(indexedConsensusRequest);
+        StepTracker.trace("stateMachineWrite", startTimeAfterLock, System.nanoTime());
+        long offerStartTime = System.nanoTime();
         if (result.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
           logDispatcher.offer(indexedConsensusRequest);
         } else {
@@ -134,10 +138,11 @@ public class MultiLeaderServerImpl {
               result.getCode());
           index.decrementAndGet();
         }
-
+        StepTracker.trace("serializeAndOfferToQueue", offerStartTime, System.nanoTime());
         return result;
       } finally {
-        StepTracker.trace("MultiLeaderWrite", startTime, System.nanoTime());
+        StepTracker.trace("MultiLeaderWriteAfterLock", startTimeAfterLock, System.nanoTime());
+        StepTracker.trace("MultiLeaderWriteWhole", leaderWriteStartTime, System.nanoTime());
       }
     }
   }
