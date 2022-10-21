@@ -20,6 +20,10 @@
 package org.apache.iotdb.tool.core.service;
 
 import org.apache.iotdb.tool.core.model.*;
+import org.apache.iotdb.tool.core.model.web.ChunkGroupBriefInfo;
+import org.apache.iotdb.tool.core.model.web.ChunkOffsetInfo;
+import org.apache.iotdb.tool.core.model.web.PageHeaderForWeb;
+import org.apache.iotdb.tool.core.model.web.PageOffsetInfo;
 import org.apache.iotdb.tsfile.common.conf.TSFileConfig;
 import org.apache.iotdb.tsfile.common.conf.TSFileDescriptor;
 import org.apache.iotdb.tsfile.common.constant.TsFileConstant;
@@ -940,6 +944,141 @@ public class TsFileAnalyserV13 {
     TsFileValuePageReader pageReader =
         new TsFileValuePageReader(pageHeader, dataBuffer, pageInfo.getDataType(), valueDecoder);
     return pageReader.allValueBatch();
+  }
+
+  /**
+   * 获取单个Chunkgroup的简易信息，chunkgroupHeader，第一个chunkHeader，第一个pageHeader
+   *
+   * @param offset
+   * @return
+   * @throws IOException
+   */
+  public ChunkGroupBriefInfo fetchChunkGroupBrief(long offset)
+      throws IOException, InterruptedException {
+    countDownLatch.await();
+    reader.position(offset);
+    ChunkGroupHeader chunkGroupHeader = reader.readChunkGroupHeader();
+    byte marker = reader.readMarker();
+    ChunkHeader chunkHeader = reader.readChunkHeader(marker);
+    byte pmarker = reader.readMarker();
+    PageHeader pageHeader;
+    if (marker == MetaMarker.CHUNK_HEADER) {
+      pageHeader = reader.readPageHeader(chunkHeader.getDataType(), true);
+    } else {
+      pageHeader = reader.readPageHeader(chunkHeader.getDataType(), false);
+    }
+
+    ChunkGroupBriefInfo chunkGroupBriefInfo = new ChunkGroupBriefInfo();
+    chunkGroupBriefInfo.setCgh(chunkGroupHeader);
+    chunkGroupBriefInfo.setCh(chunkHeader);
+    chunkGroupBriefInfo.setPh(new PageHeaderForWeb(pageHeader));
+    return chunkGroupBriefInfo;
+  }
+
+  /**
+   * 通过chunkgroup的offset 获取其下边所有的chunk
+   *
+   * @param offset
+   * @return
+   * @throws InterruptedException
+   * @throws IOException
+   */
+  public List<ChunkOffsetInfo> fetchChunkOffsetListByChunkGroupOffset(long offset)
+      throws InterruptedException, IOException {
+    countDownLatch.await();
+    List<ChunkOffsetInfo> chunkOffsetInfoList = new ArrayList<>();
+    reader.position(offset);
+    ChunkGroupHeader chunkGroupHeader = reader.readChunkGroupHeader();
+    byte marker;
+    ChunkHeader chunkHeader;
+    while (((marker = reader.readMarker()) != MetaMarker.CHUNK_GROUP_HEADER)
+        && (marker != MetaMarker.OPERATION_INDEX_RANGE)
+        && (marker != MetaMarker.SEPARATOR)) {
+      ChunkOffsetInfo chunkOffsetInfo = new ChunkOffsetInfo();
+      long chunkOffset = reader.position() - 1;
+      chunkHeader = reader.readChunkHeader(marker);
+      // aligned 对齐的时间序列，第一个chunk是VECTOR
+      if (chunkHeader.getDataType() == TSDataType.VECTOR) {
+        chunkOffsetInfo.setAligned(true);
+      }
+
+      if (chunkOffsetInfoList.size() != 0) {
+        chunkOffsetInfo.setAligned(chunkOffsetInfoList.get(0).isAligned());
+      }
+
+      chunkOffsetInfo.setMeasurementId(chunkHeader.getMeasurementID());
+      chunkOffsetInfo.setOffset(chunkOffset);
+      chunkOffsetInfoList.add(chunkOffsetInfo);
+      reader.position(reader.position() + chunkHeader.getDataSize());
+    }
+    return chunkOffsetInfoList;
+  }
+
+  public List<PageOffsetInfo> fetchPageOffsetListByChunkOffset(long offset)
+      throws IOException, InterruptedException {
+    countDownLatch.await();
+    List<PageOffsetInfo> pageOffsetInfoList = new ArrayList<>();
+    reader.position(offset);
+    byte marker = reader.readMarker();
+    ChunkHeader chunkHeader = reader.readChunkHeader(marker);
+    int chunkDataSize = chunkHeader.getDataSize();
+
+    boolean isAligned = false;
+    boolean hasStatistics = false;
+    if (chunkHeader.getDataType() == TSDataType.VECTOR) {
+      isAligned = true;
+    }
+
+    if (marker == MetaMarker.CHUNK_HEADER) {
+      hasStatistics = true;
+    }
+
+    while (chunkDataSize > 0) {
+      PageOffsetInfo pageOffsetInfo = new PageOffsetInfo();
+      pageOffsetInfo.setOffset(reader.position() - 1);
+      pageOffsetInfo.setAligned(isAligned);
+      pageOffsetInfo.setTsDataType(chunkHeader.getDataType());
+      PageHeader pageHeader = reader.readPageHeader(chunkHeader.getDataType(), hasStatistics);
+
+      pageOffsetInfo.setCompressionType(chunkHeader.getCompressionType());
+      pageOffsetInfo.setEncodingType(chunkHeader.getEncodingType());
+      pageOffsetInfo.setHasStatistics(hasStatistics);
+
+      reader.skipPageData(pageHeader);
+      chunkDataSize -= pageHeader.getSerializedPageSize();
+      pageOffsetInfoList.add(pageOffsetInfo);
+    }
+    return pageOffsetInfoList;
+  }
+
+  public BatchData fetchBatchDataByPageOffset(PageOffsetInfo pageOffsetInfo) throws IOException {
+
+    BatchData batchData;
+    Decoder timeDecoder =
+            Decoder.getDecoderByType(
+                    TSEncoding.valueOf(TSFileDescriptor.getInstance().getConfig().getTimeEncoder()),
+                    TSDataType.INT64);
+
+    reader.position(pageOffsetInfo.getOffset());
+
+    if (!pageOffsetInfo.isAligned()) {
+      byte marker = reader.readMarker();
+      PageHeader pageHeader = reader.readPageHeader(pageOffsetInfo.getTsDataType(),pageOffsetInfo.isHasStatistics());
+      Decoder valueDecoder =
+              Decoder.getDecoderByType(pageOffsetInfo.getEncodingType(), pageOffsetInfo.getTsDataType());
+      ByteBuffer pageData = reader.readPage(pageHeader, pageOffsetInfo.getCompressionType());
+
+      PageReader pageReader =
+              new PageReader(
+                      pageHeader, pageData, pageOffsetInfo.getTsDataType(), valueDecoder, timeDecoder, null);
+      batchData = pageReader.getAllSatisfiedPageData();
+    }else{
+      long cgOffset = pageOffsetInfo.getChunkGroupOffset();
+        batchData = null;
+
+    }
+
+    return batchData;
   }
 
   public long getFileSize() {

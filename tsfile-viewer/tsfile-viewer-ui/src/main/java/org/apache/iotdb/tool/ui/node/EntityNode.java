@@ -24,6 +24,7 @@ import org.apache.iotdb.tool.ui.scene.IndexNodeInfoPage;
 import org.apache.iotdb.tool.ui.scene.IoTDBParsePageV3;
 import org.apache.iotdb.tsfile.file.metadata.ITimeSeriesMetadata;
 import org.apache.iotdb.tsfile.file.metadata.enums.MetadataIndexNodeType;
+import org.apache.iotdb.tsfile.file.metadata.statistics.Statistics;
 
 import java.util.List;
 import javafx.scene.Cursor;
@@ -37,7 +38,6 @@ import javafx.scene.shape.Circle;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
-import org.apache.iotdb.tsfile.file.metadata.statistics.Statistics;
 
 /**
  * index entity node
@@ -178,14 +178,13 @@ public class EntityNode {
         sb.append(this.timeSeriesMetadataNode.getDeviceId());
         break;
       case LEAF_MEASUREMENT:
-        ITimeSeriesMetadata timeseriesMetadata = this.timeSeriesMetadataNode.getTimeseriesMetadata();
+        ITimeSeriesMetadata timeseriesMetadata =
+            this.timeSeriesMetadataNode.getTimeseriesMetadata();
         sb.append("\n");
-        sb.append(
-            "【measurementId】"
-                + this.timeSeriesMetadataNode.getMeasurementId());
-        if(timeseriesMetadata != null) {
+        sb.append("【measurementId】" + this.timeSeriesMetadataNode.getMeasurementId());
+        if (timeseriesMetadata != null) {
           Statistics statistics = timeseriesMetadata.getStatistics();
-          if(statistics != null) {
+          if (statistics != null) {
             sb.append("\n");
             sb.append("【statistics】" + statistics);
           }

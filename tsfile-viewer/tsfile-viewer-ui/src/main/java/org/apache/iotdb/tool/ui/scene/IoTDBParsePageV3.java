@@ -125,23 +125,26 @@ public class IoTDBParsePageV3 extends IoTDBParsePage {
     treeView.setPrefHeight(HEIGHT * 0.93);
     this.root.getChildren().add(treeView);
 
-    baseStage.focusedProperty().addListener((observableValue, aBoolean, t1) -> {
-      if(!aBoolean) {
-        if(this.measurementSearchPage != null && this.measurementSearchPage.isShow()) {
-          this.measurementSearchPage.alwaysTop(true);
-        }
-        if(this.encodeAnalysePage != null && this.encodeAnalysePage.isShow()) {
-          this.encodeAnalysePage.alwaysTop(true);
-        }
-      } else {
-        if(this.measurementSearchPage != null) {
-          this.measurementSearchPage.alwaysTop(false);
-        }
-        if(this.encodeAnalysePage != null && this.encodeAnalysePage.isShow()) {
-          this.encodeAnalysePage.alwaysTop(false);
-        }
-      }
-    });
+    baseStage
+        .focusedProperty()
+        .addListener(
+            (observableValue, aBoolean, t1) -> {
+              if (!aBoolean) {
+                if (this.measurementSearchPage != null && this.measurementSearchPage.isShow()) {
+                  this.measurementSearchPage.alwaysTop(true);
+                }
+                if (this.encodeAnalysePage != null && this.encodeAnalysePage.isShow()) {
+                  this.encodeAnalysePage.alwaysTop(true);
+                }
+              } else {
+                if (this.measurementSearchPage != null) {
+                  this.measurementSearchPage.alwaysTop(false);
+                }
+                if (this.encodeAnalysePage != null && this.encodeAnalysePage.isShow()) {
+                  this.encodeAnalysePage.alwaysTop(false);
+                }
+              }
+            });
 
     // tree listener
     treeView

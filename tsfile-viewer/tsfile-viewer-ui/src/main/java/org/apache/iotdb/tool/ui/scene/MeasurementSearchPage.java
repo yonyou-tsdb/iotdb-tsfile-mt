@@ -259,7 +259,7 @@ public class MeasurementSearchPage {
   }
 
   public synchronized void alwaysTop(boolean alwayTop) {
-    if(alwayTop) {
+    if (alwayTop) {
       this.parent.setAlwaysOnTop(true);
     } else {
       this.parent.setAlwaysOnTop(false);
