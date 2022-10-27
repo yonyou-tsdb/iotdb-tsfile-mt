@@ -22,11 +22,11 @@ import org.apache.iotdb.tsfile.file.metadata.enums.CompressionType;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSEncoding;
 
-/** @Author: LL @Description: @Date: create in 2022/10/21 15:12 */
-public class PageOffsetInfo {
+/** @Author: LL @Description: @Date: create in 2022/10/26 14:28 */
+public class TimeseriesIndexOffsetInfo {
 
   /** page名称，逻辑概念，core包不负责填充 */
-  private String pageNo;;
+  private String pageNo;
 
   private long offset;
 
@@ -44,8 +44,17 @@ public class PageOffsetInfo {
   /** 通过chunk的marker 判断出来的信息 */
   private boolean hasStatistics;
 
-  /** 获取 pagedata时，页面传入的信息 */
-  private long chunkGroupOffset;
+  private long timeseriesIndexOffset;
+
+  private long chunkOffset;
+
+  public String getPageNo() {
+    return pageNo;
+  }
+
+  public void setPageNo(String pageNo) {
+    this.pageNo = pageNo;
+  }
 
   public long getOffset() {
     return offset;
@@ -63,12 +72,12 @@ public class PageOffsetInfo {
     isAligned = aligned;
   }
 
-  public String getPageNo() {
-    return pageNo;
+  public long getTimeseriesIndexOffset() {
+    return timeseriesIndexOffset;
   }
 
-  public void setPageNo(String pageNo) {
-    this.pageNo = pageNo;
+  public void setTimeseriesIndexOffset(long timeseriesIndexOffset) {
+    this.timeseriesIndexOffset = timeseriesIndexOffset;
   }
 
   public TSDataType getTsDataType() {
@@ -103,11 +112,11 @@ public class PageOffsetInfo {
     this.hasStatistics = hasStatistics;
   }
 
-  public long getChunkGroupOffset() {
-    return chunkGroupOffset;
+  public long getChunkOffset() {
+    return chunkOffset;
   }
 
-  public void setChunkGroupOffset(long chunkGroupOffset) {
-    this.chunkGroupOffset = chunkGroupOffset;
+  public void setChunkOffset(long chunkOffset) {
+    this.chunkOffset = chunkOffset;
   }
 }

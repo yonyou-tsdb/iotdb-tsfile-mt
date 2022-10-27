@@ -20,10 +20,7 @@
 package org.apache.iotdb.tool.core.service;
 
 import org.apache.iotdb.tool.core.model.*;
-import org.apache.iotdb.tool.core.model.web.ChunkGroupBriefInfo;
-import org.apache.iotdb.tool.core.model.web.ChunkOffsetInfo;
-import org.apache.iotdb.tool.core.model.web.PageHeaderForWeb;
-import org.apache.iotdb.tool.core.model.web.PageOffsetInfo;
+import org.apache.iotdb.tool.core.model.web.*;
 import org.apache.iotdb.tsfile.common.conf.TSFileConfig;
 import org.apache.iotdb.tsfile.common.conf.TSFileDescriptor;
 import org.apache.iotdb.tsfile.common.constant.TsFileConstant;
@@ -68,6 +65,7 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 import static org.apache.iotdb.tool.core.util.TsFileEncodeCompressAnalysedUtil.*;
 
@@ -80,6 +78,7 @@ public class TsFileAnalyserV13 {
   private final String filePath;
   private final TsFileAnalysedToolReader reader;
   private final List<ChunkGroupMetadataModel> chunkGroupMetadataModelList = new ArrayList<>();
+  private final Map<Long, Pair<Path, ITimeSeriesMetadata>> timeseriesMetadataMap = new TreeMap<>();
   private final Map<Path, IMeasurementSchema> newSchema = new HashMap<>();
 
   private TimeSeriesMetadataNode timeSeriesMetadataNode;
@@ -947,6 +946,11 @@ public class TsFileAnalyserV13 {
   }
 
   /**
+   * **********************************************************for web
+   * clinet*************************************************************************************
+   */
+
+  /**
    * 获取单个Chunkgroup的简易信息，chunkgroupHeader，第一个chunkHeader，第一个pageHeader
    *
    * @param offset
@@ -1051,36 +1055,224 @@ public class TsFileAnalyserV13 {
     return pageOffsetInfoList;
   }
 
-  public BatchData fetchBatchDataByPageOffset(PageOffsetInfo pageOffsetInfo) throws IOException {
+  public PageDataTableInfo fetchBatchDataByPageOffset(PageOffsetInfo pageOffsetInfo)
+      throws IOException, InterruptedException {
 
+    PageDataTableInfo tableInfo = new PageDataTableInfo();
     BatchData batchData;
     Decoder timeDecoder =
-            Decoder.getDecoderByType(
-                    TSEncoding.valueOf(TSFileDescriptor.getInstance().getConfig().getTimeEncoder()),
-                    TSDataType.INT64);
+        Decoder.getDecoderByType(
+            TSEncoding.valueOf(TSFileDescriptor.getInstance().getConfig().getTimeEncoder()),
+            TSDataType.INT64);
 
     reader.position(pageOffsetInfo.getOffset());
 
     if (!pageOffsetInfo.isAligned()) {
       byte marker = reader.readMarker();
-      PageHeader pageHeader = reader.readPageHeader(pageOffsetInfo.getTsDataType(),pageOffsetInfo.isHasStatistics());
+      PageHeader pageHeader =
+          reader.readPageHeader(pageOffsetInfo.getTsDataType(), pageOffsetInfo.isHasStatistics());
       Decoder valueDecoder =
-              Decoder.getDecoderByType(pageOffsetInfo.getEncodingType(), pageOffsetInfo.getTsDataType());
+          Decoder.getDecoderByType(
+              pageOffsetInfo.getEncodingType(), pageOffsetInfo.getTsDataType());
       ByteBuffer pageData = reader.readPage(pageHeader, pageOffsetInfo.getCompressionType());
 
       PageReader pageReader =
-              new PageReader(
-                      pageHeader, pageData, pageOffsetInfo.getTsDataType(), valueDecoder, timeDecoder, null);
+          new PageReader(
+              pageHeader,
+              pageData,
+              pageOffsetInfo.getTsDataType(),
+              valueDecoder,
+              timeDecoder,
+              null);
       batchData = pageReader.getAllSatisfiedPageData();
-    }else{
+      tableInfo.getTitle().add("timestamp");
+      tableInfo.getTitle().add("value");
+    } else {
       long cgOffset = pageOffsetInfo.getChunkGroupOffset();
-        batchData = null;
+      List<ChunkOffsetInfo> chunkOffsetInfoList = fetchChunkOffsetListByChunkGroupOffset(cgOffset);
+      //      ChunkOffsetInfo timeChunk = chunkOffsetInfoList.get(0);
+      //      List<PageOffsetInfo> timePageInfoList =
+      // fetchPageOffsetListByChunkOffset(timeChunk.getOffset());
+      List<PageOffsetInfo> valuePageInfoList = new ArrayList<>();
 
+      tableInfo
+          .getTitle()
+          .addAll(
+              chunkOffsetInfoList.stream()
+                  .map(chunkOffsetInfo -> chunkOffsetInfo.getMeasurementId())
+                  .collect(Collectors.toList()));
+      tableInfo.getTitle().set(0, "timestamp");
+
+      for (int i = 1; i < chunkOffsetInfoList.size(); i++) {
+        long valueChunkOffset = chunkOffsetInfoList.get(i).getOffset();
+        List<PageOffsetInfo> pageOffsetInfoList =
+            fetchPageOffsetListByChunkOffset(valueChunkOffset);
+        valuePageInfoList.addAll(pageOffsetInfoList);
+      }
+
+      reader.position(pageOffsetInfo.getOffset());
+      reader.readMarker();
+      PageHeader timePageHeader =
+          reader.readPageHeader(pageOffsetInfo.getTsDataType(), pageOffsetInfo.isHasStatistics());
+      ByteBuffer timeByteBuffer =
+          reader.readPage(timePageHeader, pageOffsetInfo.getCompressionType());
+
+      List<PageHeader> valuePageHeaders = new ArrayList<>();
+      List<ByteBuffer> valueByteBuffers = new ArrayList<>();
+      List<TSDataType> valueTSDataTypes = new ArrayList<>();
+      List<Decoder> valueDecoders = new ArrayList<>();
+
+      for (PageOffsetInfo valuePageInfo : valuePageInfoList) {
+        reader.position(valuePageInfo.getOffset());
+        reader.readMarker();
+        PageHeader valuePageHeader =
+            reader.readPageHeader(valuePageInfo.getTsDataType(), valuePageInfo.isHasStatistics());
+
+        valuePageHeaders.add(valuePageHeader);
+        valueByteBuffers.add(reader.readPage(valuePageHeader, valuePageInfo.getCompressionType()));
+        valueTSDataTypes.add(valuePageInfo.getTsDataType());
+        valueDecoders.add(
+            Decoder.getDecoderByType(
+                valuePageInfo.getEncodingType(), valuePageInfo.getTsDataType()));
+      }
+      AlignedPageReader alignedPageReader =
+          new AlignedPageReader(
+              timePageHeader,
+              timeByteBuffer,
+              timeDecoder,
+              valuePageHeaders,
+              valueByteBuffers,
+              valueTSDataTypes,
+              valueDecoders,
+              null);
+
+      batchData = alignedPageReader.getAllSatisfiedPageData();
     }
-
-    return batchData;
+    tableInfo.setData(batchData);
+    return tableInfo;
   }
 
+  public PageDataTableInfo fetchBatchDataByTimeseriesIndexOffset(
+      TimeseriesIndexOffsetInfo timeseriesIndexOffsetInfo)
+      throws IOException, InterruptedException {
+
+    PageDataTableInfo tableInfo = new PageDataTableInfo();
+    BatchData batchData;
+    Decoder timeDecoder =
+        Decoder.getDecoderByType(
+            TSEncoding.valueOf(TSFileDescriptor.getInstance().getConfig().getTimeEncoder()),
+            TSDataType.INT64);
+
+    reader.position(timeseriesIndexOffsetInfo.getOffset());
+
+    if (!timeseriesIndexOffsetInfo.isAligned()) {
+      byte marker = reader.readMarker();
+      PageHeader pageHeader =
+          reader.readPageHeader(
+              timeseriesIndexOffsetInfo.getTsDataType(),
+              timeseriesIndexOffsetInfo.isHasStatistics());
+      Decoder valueDecoder =
+          Decoder.getDecoderByType(
+              timeseriesIndexOffsetInfo.getEncodingType(),
+              timeseriesIndexOffsetInfo.getTsDataType());
+      ByteBuffer pageData =
+          reader.readPage(pageHeader, timeseriesIndexOffsetInfo.getCompressionType());
+
+      PageReader pageReader =
+          new PageReader(
+              pageHeader,
+              pageData,
+              timeseriesIndexOffsetInfo.getTsDataType(),
+              valueDecoder,
+              timeDecoder,
+              null);
+      batchData = pageReader.getAllSatisfiedPageData();
+      tableInfo.getTitle().add("timestamp");
+      tableInfo.getTitle().add("value");
+    } else {
+      List<PageOffsetInfo> valuePageInfoList = new ArrayList<>();
+      long timeseriesIndexOffset = timeseriesIndexOffsetInfo.getTimeseriesIndexOffset();
+      Pair<Path, ITimeSeriesMetadata> pair = timeseriesMetadataMap.get(timeseriesIndexOffset);
+      AlignedTimeSeriesMetadata alignedMetadata = (AlignedTimeSeriesMetadata) pair.right;
+      AlignedChunkMetadata alignedChunkMetadata =
+          alignedMetadata.getChunkMetadataList().stream()
+              .filter(
+                  alignedchunk -> {
+                    if (alignedchunk.getOffsetOfChunkHeader()
+                        == timeseriesIndexOffsetInfo.getChunkOffset()) {
+                      return true;
+                    }
+                    return false;
+                  })
+              .collect(Collectors.toList())
+              .get(0);
+
+      IChunkMetadata timeChunk = alignedChunkMetadata.getTimeChunkMetadata();
+      List<IChunkMetadata> valueChunkList = alignedChunkMetadata.getValueChunkMetadataList();
+
+      tableInfo.getTitle().add("timestamp");
+      tableInfo
+          .getTitle()
+          .addAll(
+              valueChunkList.stream()
+                  .map(chunkOffsetInfo -> chunkOffsetInfo.getMeasurementUid())
+                  .collect(Collectors.toList()));
+
+      for (int i = 0; i < valueChunkList.size(); i++) {
+        long valueChunkOffset = valueChunkList.get(i).getOffsetOfChunkHeader();
+        List<PageOffsetInfo> pageOffsetInfoList =
+            fetchPageOffsetListByChunkOffset(valueChunkOffset);
+        valuePageInfoList.addAll(pageOffsetInfoList);
+      }
+
+      reader.position(timeseriesIndexOffsetInfo.getOffset());
+      reader.readMarker();
+      PageHeader timePageHeader =
+          reader.readPageHeader(
+              timeseriesIndexOffsetInfo.getTsDataType(),
+              timeseriesIndexOffsetInfo.isHasStatistics());
+      ByteBuffer timeByteBuffer =
+          reader.readPage(timePageHeader, timeseriesIndexOffsetInfo.getCompressionType());
+
+      List<PageHeader> valuePageHeaders = new ArrayList<>();
+      List<ByteBuffer> valueByteBuffers = new ArrayList<>();
+      List<TSDataType> valueTSDataTypes = new ArrayList<>();
+      List<Decoder> valueDecoders = new ArrayList<>();
+
+      for (PageOffsetInfo valuePageInfo : valuePageInfoList) {
+        reader.position(valuePageInfo.getOffset());
+        reader.readMarker();
+        PageHeader valuePageHeader =
+            reader.readPageHeader(valuePageInfo.getTsDataType(), valuePageInfo.isHasStatistics());
+
+        valuePageHeaders.add(valuePageHeader);
+        valueByteBuffers.add(reader.readPage(valuePageHeader, valuePageInfo.getCompressionType()));
+        valueTSDataTypes.add(valuePageInfo.getTsDataType());
+        valueDecoders.add(
+            Decoder.getDecoderByType(
+                valuePageInfo.getEncodingType(), valuePageInfo.getTsDataType()));
+      }
+      AlignedPageReader alignedPageReader =
+          new AlignedPageReader(
+              timePageHeader,
+              timeByteBuffer,
+              timeDecoder,
+              valuePageHeaders,
+              valueByteBuffers,
+              valueTSDataTypes,
+              valueDecoders,
+              null);
+
+      batchData = alignedPageReader.getAllSatisfiedPageData();
+    }
+    tableInfo.setData(batchData);
+    return tableInfo;
+  }
+
+  /**
+   * **********************************************************for web
+   * clinet*************************************************************************************
+   */
   public long getFileSize() {
     return fileSize;
   }
@@ -1127,6 +1319,10 @@ public class TsFileAnalyserV13 {
     return chunkGroupInfoList;
   }
 
+  public Map<Long, Pair<Path, ITimeSeriesMetadata>> getTimeseriesMetadataMap() {
+    return timeseriesMetadataMap;
+  }
+
   private class TsFileAnalysedToolReader extends TsFileSequenceReader {
     public TsFileAnalysedToolReader(String file) throws IOException {
       super(file);
@@ -1148,7 +1344,7 @@ public class TsFileAnalyserV13 {
         ByteBuffer buffer,
         String deviceId,
         MetadataIndexNodeType type,
-        Map<Long, Pair<Path, TimeseriesMetadata>> timeseriesMetadataMap,
+        Map<Long, Pair<Path, ITimeSeriesMetadata>> timeseriesMetadataMap,
         TimeSeriesMetadataNode tsNode,
         boolean needChunkMetadata)
         throws IOException {
@@ -1172,7 +1368,8 @@ public class TsFileAnalyserV13 {
                     startOffset + buffer.position(),
                     deviceId,
                     tsNode,
-                    type);
+                    type,
+                    timeseriesMetadataMap);
               }
               aligned = true;
               alignedTime = new TimeseriesMetadata(timeseriesMetadata);
@@ -1189,7 +1386,8 @@ public class TsFileAnalyserV13 {
                     startOffset + buffer.position(),
                     deviceId,
                     tsNode,
-                    type);
+                    type,
+                    timeseriesMetadataMap);
               }
 
               timeseriesMetadataMap.put(
@@ -1216,7 +1414,8 @@ public class TsFileAnalyserV13 {
                 startOffset + buffer.position(),
                 deviceId,
                 tsNode,
-                type);
+                type,
+                timeseriesMetadataMap);
           }
 
           tsNode.setNodeType(type);
@@ -1264,7 +1463,8 @@ public class TsFileAnalyserV13 {
         long pos,
         String deviceId,
         TimeSeriesMetadataNode tsNode,
-        MetadataIndexNodeType type) {
+        MetadataIndexNodeType type,
+        Map<Long, Pair<Path, ITimeSeriesMetadata>> timeseriesMetadataMap) {
       if (alignedTime != null && alignedValues.size() > 0) {
         AlignedTimeSeriesMetadata alignedTimeSeriesMetadata =
             new AlignedTimeSeriesMetadata(alignedTime, new ArrayList<>(alignedValues));
@@ -1273,7 +1473,16 @@ public class TsFileAnalyserV13 {
         leafNode.setChildren(new ArrayList<>());
         leafNode.setPosition(pos);
         leafNode.setDeviceId(deviceId);
-        leafNode.setMeasurementId(alignedValues.get(0).getMeasurementId());
+        StringBuilder measureIds = new StringBuilder();
+        for (TimeseriesMetadata valueMetadata : alignedValues) {
+          valueMetadata.getMeasurementId();
+          if (measureIds.length() == 0) {
+            measureIds.append(valueMetadata.getMeasurementId());
+          } else {
+            measureIds.append(" || ").append(valueMetadata.getMeasurementId());
+          }
+        }
+        leafNode.setMeasurementId(measureIds.toString());
         leafNode.setTimeseriesMetadata(alignedTimeSeriesMetadata);
         leafNode.setAligned(true);
         for (TimeseriesMetadata value : alignedValues) {
@@ -1281,6 +1490,9 @@ public class TsFileAnalyserV13 {
             allCount += value.getStatistics().getCount();
           }
         }
+
+        timeseriesMetadataMap.put(
+            pos, new Pair<>(new Path(deviceId, measureIds.toString()), alignedTimeSeriesMetadata));
 
         leafNode.setNodeType(type);
         tsNode.getChildren().add(leafNode);
@@ -1294,7 +1506,6 @@ public class TsFileAnalyserV13 {
         logger.info("Start reading TsFileMetadata, preparing to deserialized index.");
       }
       MetadataIndexNode metadataIndexNode = tsFileMetaData.getMetadataIndex();
-      Map<Long, Pair<Path, TimeseriesMetadata>> timeseriesMetadataMap = new TreeMap<>();
       TimeSeriesMetadataNode node = new TimeSeriesMetadataNode();
       List<MetadataIndexEntry> metadataIndexEntryList = metadataIndexNode.getChildren();
       for (int i = 0; i < metadataIndexEntryList.size(); i++) {
