@@ -28,6 +28,10 @@ public class ChunkOffsetInfo {
 
   private String measurementId;
 
+  private long startTime;
+
+  private long endTime;
+
   public boolean isAligned() {
     return isAligned;
   }
@@ -50,5 +54,21 @@ public class ChunkOffsetInfo {
 
   public void setMeasurementId(String measurementId) {
     this.measurementId = measurementId;
+  }
+
+  public long getStartTime() {
+    return startTime;
+  }
+
+  public void setStartTime(long startTime) {
+    this.startTime = startTime;
+  }
+
+  public long getEndTime() {
+    return endTime;
+  }
+
+  public void setEndTime(long endTime) {
+    this.endTime = endTime;
   }
 }

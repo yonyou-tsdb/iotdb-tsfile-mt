@@ -47,6 +47,10 @@ public class PageOffsetInfo {
   /** 获取 pagedata时，页面传入的信息 */
   private long chunkGroupOffset;
 
+  private long startTime;
+
+  private long endTime;
+
   public long getOffset() {
     return offset;
   }
@@ -109,5 +113,21 @@ public class PageOffsetInfo {
 
   public void setChunkGroupOffset(long chunkGroupOffset) {
     this.chunkGroupOffset = chunkGroupOffset;
+  }
+
+  public long getStartTime() {
+    return startTime;
+  }
+
+  public void setStartTime(long startTime) {
+    this.startTime = startTime;
+  }
+
+  public long getEndTime() {
+    return endTime;
+  }
+
+  public void setEndTime(long endTime) {
+    this.endTime = endTime;
   }
 }

@@ -1033,8 +1033,12 @@ public class TsFileAnalyserV13 {
       isAligned = true;
     }
 
-    if (marker == MetaMarker.CHUNK_HEADER) {
-      hasStatistics = true;
+    if (marker == MetaMarker.CHUNK_HEADER
+        || marker == MetaMarker.TIME_CHUNK_HEADER
+        || marker == MetaMarker.VALUE_CHUNK_HEADER) {
+      if (((byte) (chunkHeader.getChunkType() & 0x3F)) == MetaMarker.CHUNK_HEADER) {
+        hasStatistics = true;
+      }
     }
 
     while (chunkDataSize > 0) {
@@ -1043,10 +1047,43 @@ public class TsFileAnalyserV13 {
       pageOffsetInfo.setAligned(isAligned);
       pageOffsetInfo.setTsDataType(chunkHeader.getDataType());
       PageHeader pageHeader = reader.readPageHeader(chunkHeader.getDataType(), hasStatistics);
-
       pageOffsetInfo.setCompressionType(chunkHeader.getCompressionType());
       pageOffsetInfo.setEncodingType(chunkHeader.getEncodingType());
       pageOffsetInfo.setHasStatistics(hasStatistics);
+
+      // 界定page的startTime和endTime
+      if (hasStatistics) {
+        pageOffsetInfo.setStartTime(pageHeader.getStartTime());
+        pageOffsetInfo.setEndTime(pageHeader.getEndTime());
+      } else {
+        // 查找一下chunk offset 对应 chunkgroup offset
+        for (int i = chunkGroupInfoList.size() - 1; i >= 0; i--) {
+          if (chunkGroupInfoList.get(i).getOffset() - offset < 0) {
+            pageOffsetInfo.setChunkGroupOffset(chunkGroupInfoList.get(i).getOffset());
+            break;
+          }
+        }
+        BatchData data = fetchBatchDataByPageOffset(pageOffsetInfo).getData();
+        long startTime = 0;
+        long endTime = 0;
+        while (data.hasCurrent()) {
+          if (startTime == 0) {
+            startTime = data.currentTime();
+            endTime = data.currentTime();
+          }
+
+          if (data.currentTime() < startTime) {
+            startTime = data.currentTime();
+          }
+
+          if (data.currentTime() > endTime) {
+            endTime = data.currentTime();
+          }
+          data.next();
+        }
+        pageOffsetInfo.setStartTime(startTime);
+        pageOffsetInfo.setEndTime(endTime);
+      }
 
       reader.skipPageData(pageHeader);
       chunkDataSize -= pageHeader.getSerializedPageSize();
@@ -1532,6 +1569,7 @@ public class TsFileAnalyserV13 {
         node.getChildren().add(entry);
       }
       node.setNodeType(metadataIndexNode.getNodeType());
+      node.setPosition(reader.getFileMetadataPos());
 
       return node;
     }
